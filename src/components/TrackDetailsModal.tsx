@@ -25,6 +25,7 @@ import {
   formatTime,
   calculateLoudnessNormalizationDb,
   TARGET_PLAYBACK_LUFS,
+  resolvePublicAssetUrl,
 } from '../utils/audioMath.ts';
 import { CANONICAL_GENRES, CANONICAL_MOODS } from '../utils/trackCategorizer.ts';
 import {
@@ -269,9 +270,10 @@ export const TrackDetailsModal: React.FC<TrackDetailsModalProps> = ({
   };
 
   const handleDownloadFile = (format: string) => {
-    if (track.audioUrl) {
+    const resolvedUrl = resolvePublicAssetUrl(track.audioUrl);
+    if (resolvedUrl) {
       const a = document.createElement('a');
-      a.href = track.audioUrl;
+      a.href = resolvedUrl;
       const safeName = track.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ai-music-haven-track';
       a.download = `${safeName}.mp3`;
       document.body.appendChild(a);

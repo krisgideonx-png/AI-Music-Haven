@@ -9,6 +9,7 @@ import {
   TARGET_PLAYBACK_LUFS,
   calculateLoudnessNormalizationGain,
   calculateLoudnessNormalizationDb,
+  resolvePublicAssetUrl,
 } from './audioMath.ts';
 
 export {
@@ -300,13 +301,14 @@ class AudioEngine {
     // Automatically normalize playback gain from the track's integrated LUFS
     this.normalizeTrackLoudness(callbacks?.integratedLufs);
 
-    if (audioUrl && this.audioEl) {
-      const normalizedNextUrl = new URL(audioUrl, window.location.origin).href;
+    const resolvedAudioUrl = resolvePublicAssetUrl(audioUrl);
+    if (resolvedAudioUrl && this.audioEl) {
+      const normalizedNextUrl = new URL(resolvedAudioUrl, document.baseURI).href;
       const isSameSource = this.audioEl.src === normalizedNextUrl;
-      this.activeAudioUrl = audioUrl;
+      this.activeAudioUrl = resolvedAudioUrl;
 
       if (!isSameSource) {
-        this.audioEl.src = audioUrl;
+        this.audioEl.src = resolvedAudioUrl;
         this.audioEl.load();
       }
 

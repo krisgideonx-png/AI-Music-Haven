@@ -117,3 +117,39 @@ export function semitonesToPlaybackRate(semitones: number = 0): number {
   return Number(Math.max(0.5, Math.min(2.0, rate)).toFixed(4));
 }
 
+export function resolvePublicAssetUrl(url?: string, baseUri?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
+  ) {
+    return trimmed;
+  }
+
+  const resolvedBase =
+    baseUri ||
+    (typeof document !== 'undefined' && document.baseURI) ||
+    (typeof window !== 'undefined' ? window.location.href : undefined);
+
+  if (trimmed.startsWith('/assets/') && resolvedBase) {
+    try {
+      return new URL(trimmed.slice(1), resolvedBase).href;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  if (resolvedBase) {
+    try {
+      return new URL(trimmed, resolvedBase).href;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return trimmed;
+}

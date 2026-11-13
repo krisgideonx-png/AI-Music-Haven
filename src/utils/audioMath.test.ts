@@ -12,6 +12,7 @@ import {
   calculateLoudnessNormalizationGain,
   calculateLoudnessNormalizationDb,
   semitonesToPlaybackRate,
+  resolvePublicAssetUrl,
 } from './audioMath.ts';
 
 test('dbToGain converts 0dB to unity gain (1.0)', () => {
@@ -106,4 +107,30 @@ test('semitonesToPlaybackRate computes equal-temperament pitch ratios within bou
   assert.ok(downThree > 0.83 && downThree < 0.85, `Expected ~0.8409, got ${downThree}`);
   const upFour = semitonesToPlaybackRate(4);
   assert.ok(upFour > 1.25 && upFour < 1.27, `Expected ~1.2599, got ${upFour}`);
+});
+
+test('resolvePublicAssetUrl resolves /assets/ under GitHub Pages subpaths and root paths', () => {
+  assert.equal(
+    resolvePublicAssetUrl(
+      '/assets/aistudio/survival.mp3',
+      'https://krisgideonx-png.github.io/AI-Music-Haven/'
+    ),
+    'https://krisgideonx-png.github.io/AI-Music-Haven/assets/aistudio/survival.mp3'
+  );
+  assert.equal(
+    resolvePublicAssetUrl(
+      '/assets/aistudio/survival.mp3',
+      'https://krisgideonx-png.github.io/AI-Music-Haven/?track=trk-top-superhuman'
+    ),
+    'https://krisgideonx-png.github.io/AI-Music-Haven/assets/aistudio/survival.mp3'
+  );
+  assert.equal(
+    resolvePublicAssetUrl('/assets/aistudio/survival.mp3', 'http://localhost:3000/'),
+    'http://localhost:3000/assets/aistudio/survival.mp3'
+  );
+  assert.equal(
+    resolvePublicAssetUrl('https://cdn.example.com/song.mp3', 'https://krisgideonx-png.github.io/AI-Music-Haven/'),
+    'https://cdn.example.com/song.mp3'
+  );
+  assert.equal(resolvePublicAssetUrl(undefined), undefined);
 });
