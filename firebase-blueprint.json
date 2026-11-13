@@ -1,0 +1,681 @@
+{
+  "entities": {
+    "Track": {
+      "title": "AudioTrack",
+      "description": "A completed AI-generated song uploaded by a verified Google account to the public AI Music Haven library (contains zero user PII).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uploaderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "creator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "creatorHandle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "creatorAvatar": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "story": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1500
+        },
+        "lyrics": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "aiToolOrigin": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "bpm": {
+          "type": "number"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "duration": {
+          "type": "number"
+        },
+        "genre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "subgenre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "mood": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "vocalType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "instruments": {
+          "type": "array",
+          "description": "Bounded list of detected instruments (1 to 10 items)."
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "energyLevel": {
+          "type": "string",
+          "enum": ["Chill", "Medium", "High", "Explosive"]
+        },
+        "musicalStyle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "license": {
+          "type": "string",
+          "enum": [
+            "Free Personal",
+            "Attribution Required",
+            "Commercial Permitted",
+            "All Rights Reserved"
+          ]
+        },
+        "coverArt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "waveform": {
+          "type": "array",
+          "description": "Normalized visual amplitude samples (1 to 128 floats)."
+        },
+        "fileFormat": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "fileSize": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "sampleRate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "lufs": {
+          "type": "number"
+        },
+        "suggestedGenre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "suggestedSubgenre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "categoryConfirmed": {
+          "type": "boolean"
+        },
+        "plays": {
+          "type": "number"
+        },
+        "likes": {
+          "type": "number"
+        },
+        "downloads": {
+          "type": "number"
+        },
+        "reposts": {
+          "type": "number"
+        },
+        "rating": {
+          "type": "number"
+        },
+        "ratingCount": {
+          "type": "number"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "uploaderUid",
+        "title",
+        "creator",
+        "creatorHandle",
+        "creatorAvatar",
+        "description",
+        "aiToolOrigin",
+        "bpm",
+        "key",
+        "duration",
+        "genre",
+        "subgenre",
+        "mood",
+        "vocalType",
+        "instruments",
+        "language",
+        "energyLevel",
+        "musicalStyle",
+        "license",
+        "coverArt",
+        "waveform",
+        "fileFormat",
+        "fileSize",
+        "sampleRate",
+        "lufs",
+        "suggestedGenre",
+        "suggestedSubgenre",
+        "categoryConfirmed",
+        "plays",
+        "likes",
+        "downloads",
+        "reposts",
+        "rating",
+        "ratingCount",
+        "visibility",
+        "createdAt"
+      ]
+    },
+    "TrackComment": {
+      "title": "TrackComment",
+      "description": "Community review/comment attached to a track.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "trackId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "userHandle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "userAvatar": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "rating": {
+          "type": "number"
+        },
+        "likes": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "trackId",
+        "authorUid",
+        "userName",
+        "userHandle",
+        "userAvatar",
+        "text",
+        "rating",
+        "likes",
+        "createdAt"
+      ]
+    },
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Isolated private user profile holding PII (email) accessible only to the owning user or admin.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["Free", "Haven Pro"]
+        },
+        "aiCreditsUsed": {
+          "type": "number"
+        },
+        "aiQuotaCycle": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^[0-9]{4}-[0-9]{2}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "tier", "createdAt"]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Trusted admin marker document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "CatalogOverride": {
+      "title": "CatalogOverride",
+      "description": "Admin-managed metadata overrides for curated catalog songs.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "creator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "story": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1500
+        },
+        "lyrics": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "aiToolOrigin": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "bpm": {
+          "type": "number"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "genre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "subgenre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "mood": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "vocalType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "license": {
+          "type": "string",
+          "enum": [
+            "Free Personal",
+            "Attribution Required",
+            "Commercial Permitted",
+            "All Rights Reserved"
+          ]
+        },
+        "coverArt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "categoryConfirmed": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public"]
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "creator",
+        "description",
+        "aiToolOrigin",
+        "bpm",
+        "key",
+        "genre",
+        "subgenre",
+        "mood",
+        "vocalType",
+        "license",
+        "coverArt",
+        "categoryConfirmed",
+        "visibility",
+        "updatedByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TrackTakedownNotice": {
+      "title": "TrackTakedownNotice",
+      "description": "Administrative takedown notice delivered to the creator who owns the removed track.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "trackId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "trackTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "creatorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "targetUploaderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "autoGenerated": {
+          "type": "boolean"
+        },
+        "adminEmail": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "trackId",
+        "trackTitle",
+        "creatorName",
+        "targetUploaderUid",
+        "reason",
+        "autoGenerated",
+        "adminEmail",
+        "createdAt"
+      ]
+    },
+    "ListeningRoom": {
+      "title": "ListeningRoom",
+      "description": "Multi-device synchronized listening room identified by a shareable room code.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 8,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "hostUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "trackId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "trackTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "trackCreator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "trackCoverArt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "trackDuration": {
+          "type": "number"
+        },
+        "isPlaying": {
+          "type": "boolean"
+        },
+        "positionSeconds": {
+          "type": "number"
+        },
+        "allowGuestControl": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["room_code"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "code",
+        "name",
+        "hostUid",
+        "hostName",
+        "trackId",
+        "trackTitle",
+        "trackCreator",
+        "trackCoverArt",
+        "trackDuration",
+        "isPlaying",
+        "positionSeconds",
+        "allowGuestControl",
+        "visibility",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/tracks/{trackId}": {
+      "schema": { "$ref": "#/entities/Track" },
+      "description": "Public AI Music Haven global catalog of uploaded songs (no PII fields)."
+    },
+    "/tracks/{trackId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/TrackComment" },
+      "description": "Community comments/reviews under each track."
+    },
+    "/users/{userId}/private/profile": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Private split-collection PII storage restricted strictly to the owner or admin."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Server-managed administrator role records."
+    },
+    "/catalog_overrides/{trackId}": {
+      "schema": { "$ref": "#/entities/CatalogOverride" },
+      "description": "Admin-managed public metadata overrides for curated catalog songs."
+    },
+    "/takedowns/{takedownId}": {
+      "schema": { "$ref": "#/entities/TrackTakedownNotice" },
+      "description": "Creator-specific administrative takedown notices explaining why a song was removed."
+    },
+    "/listening_rooms/{roomCode}": {
+      "schema": { "$ref": "#/entities/ListeningRoom" },
+      "description": "Shared multi-device listening room state keyed by shareable room code."
+    }
+  }
+}

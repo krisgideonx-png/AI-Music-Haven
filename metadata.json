@@ -1,0 +1,7 @@
+{
+  "name": "Neural Acoustic Luminescence",
+  "description": "Next-generation neural audio synthesis workstation and spectral sound design studio combining cyber-minimalist glassmorphism with high-fidelity stem manipulation and real-time telemetry.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

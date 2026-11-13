@@ -1,0 +1,508 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedEmail() && (
+        request.auth.token.email == 'xtianboy5@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isBoundedString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidTrackFields(data) {
+      return isValidId(data.id)
+        && isValidId(data.uploaderUid)
+        && isBoundedString(data.title, 1, 120)
+        && isBoundedString(data.creator, 1, 80)
+        && isBoundedString(data.creatorHandle, 2, 40)
+        && isBoundedString(data.creatorAvatar, 1, 500)
+        && isBoundedString(data.description, 1, 1000)
+        && (!('story' in data) || isBoundedString(data.story, 0, 1500))
+        && (!('lyrics' in data) || isBoundedString(data.lyrics, 0, 4000))
+        && isBoundedString(data.aiToolOrigin, 1, 60)
+        && data.bpm is number && data.bpm >= 40 && data.bpm <= 240
+        && isBoundedString(data.key, 1, 30)
+        && data.duration is number && data.duration >= 1 && data.duration <= 3600
+        && isBoundedString(data.genre, 1, 60)
+        && isBoundedString(data.subgenre, 1, 60)
+        && isBoundedString(data.mood, 1, 60)
+        && isBoundedString(data.vocalType, 1, 80)
+        && data.instruments is list && data.instruments.size() >= 1 && data.instruments.size() <= 10
+        && data.instruments[0] is string && data.instruments[0].size() <= 48
+        && isBoundedString(data.language, 1, 40)
+        && data.energyLevel in ['Chill', 'Medium', 'High', 'Explosive']
+        && isBoundedString(data.musicalStyle, 1, 100)
+        && data.license in ['Free Personal', 'Attribution Required', 'Commercial Permitted', 'All Rights Reserved']
+        && isBoundedString(data.coverArt, 1, 500)
+        && data.waveform is list && data.waveform.size() >= 1 && data.waveform.size() <= 128
+        && data.waveform[0] is number
+        && isBoundedString(data.fileFormat, 1, 60)
+        && isBoundedString(data.fileSize, 1, 32)
+        && isBoundedString(data.sampleRate, 1, 40)
+        && data.lufs is number && data.lufs >= -70 && data.lufs <= 0
+        && isBoundedString(data.suggestedGenre, 1, 60)
+        && isBoundedString(data.suggestedSubgenre, 1, 60)
+        && data.categoryConfirmed is bool
+        && data.plays is number && data.plays >= 0
+        && data.likes is number && data.likes >= 0
+        && data.downloads is number && data.downloads >= 0
+        && data.reposts is number && data.reposts >= 0
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.ratingCount is number && data.ratingCount >= 1
+        && data.visibility == 'public'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidTrackCreate(data, trackId) {
+      return data.keys().hasAll([
+          'id', 'uploaderUid', 'title', 'creator', 'creatorHandle', 'creatorAvatar',
+          'description', 'aiToolOrigin', 'bpm', 'key', 'duration', 'genre',
+          'subgenre', 'mood', 'vocalType', 'instruments', 'language', 'energyLevel',
+          'musicalStyle', 'license', 'coverArt', 'waveform', 'fileFormat', 'fileSize',
+          'sampleRate', 'lufs', 'suggestedGenre', 'suggestedSubgenre',
+          'categoryConfirmed', 'plays', 'likes', 'downloads', 'reposts',
+          'rating', 'ratingCount', 'visibility', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'uploaderUid', 'title', 'creator', 'creatorHandle', 'creatorAvatar',
+          'description', 'story', 'lyrics', 'aiToolOrigin', 'bpm', 'key', 'duration', 'genre',
+          'subgenre', 'mood', 'vocalType', 'instruments', 'language', 'energyLevel',
+          'musicalStyle', 'license', 'coverArt', 'waveform', 'fileFormat', 'fileSize',
+          'sampleRate', 'lufs', 'suggestedGenre', 'suggestedSubgenre',
+          'categoryConfirmed', 'plays', 'likes', 'downloads', 'reposts',
+          'rating', 'ratingCount', 'visibility', 'createdAt'
+        ])
+        && data.id == trackId
+        && data.uploaderUid == request.auth.uid
+        && data.plays <= 1
+        && data.likes <= 1
+        && data.downloads == 0
+        && data.reposts == 0
+        && isValidTrackFields(data);
+    }
+
+    function isValidTrackUpdate(data) {
+      return data.keys().hasAll([
+          'id', 'uploaderUid', 'title', 'creator', 'creatorHandle', 'creatorAvatar',
+          'description', 'aiToolOrigin', 'bpm', 'key', 'duration', 'genre',
+          'subgenre', 'mood', 'vocalType', 'instruments', 'language', 'energyLevel',
+          'musicalStyle', 'license', 'coverArt', 'waveform', 'fileFormat', 'fileSize',
+          'sampleRate', 'lufs', 'suggestedGenre', 'suggestedSubgenre',
+          'categoryConfirmed', 'plays', 'likes', 'downloads', 'reposts',
+          'rating', 'ratingCount', 'visibility', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'uploaderUid', 'title', 'creator', 'creatorHandle', 'creatorAvatar',
+          'description', 'story', 'lyrics', 'aiToolOrigin', 'bpm', 'key', 'duration', 'genre',
+          'subgenre', 'mood', 'vocalType', 'instruments', 'language', 'energyLevel',
+          'musicalStyle', 'license', 'coverArt', 'waveform', 'fileFormat', 'fileSize',
+          'sampleRate', 'lufs', 'suggestedGenre', 'suggestedSubgenre',
+          'categoryConfirmed', 'plays', 'likes', 'downloads', 'reposts',
+          'rating', 'ratingCount', 'visibility', 'createdAt', 'updatedAt'
+        ])
+        && (!('updatedAt' in data) || data.updatedAt is timestamp)
+        && isValidTrackFields(data);
+    }
+
+    function isValidCommentFields(data) {
+      return isValidId(data.id)
+        && isValidId(data.trackId)
+        && isValidId(data.authorUid)
+        && isBoundedString(data.userName, 1, 80)
+        && isBoundedString(data.userHandle, 2, 40)
+        && isBoundedString(data.userAvatar, 1, 500)
+        && isBoundedString(data.text, 1, 600)
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.likes is number && data.likes >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCommentCreate(data, trackId, commentId) {
+      return data.keys().hasAll([
+          'id', 'trackId', 'authorUid', 'userName', 'userHandle',
+          'userAvatar', 'text', 'rating', 'likes', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'trackId', 'authorUid', 'userName', 'userHandle',
+          'userAvatar', 'text', 'rating', 'likes', 'createdAt'
+        ])
+        && data.id == commentId
+        && data.trackId == trackId
+        && data.authorUid == request.auth.uid
+        && isValidCommentFields(data);
+    }
+
+    function isValidCommentUpdate(data) {
+      return data.keys().hasAll([
+          'id', 'trackId', 'authorUid', 'userName', 'userHandle',
+          'userAvatar', 'text', 'rating', 'likes', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'trackId', 'authorUid', 'userName', 'userHandle',
+          'userAvatar', 'text', 'rating', 'likes', 'createdAt', 'updatedAt'
+        ])
+        && (!('updatedAt' in data) || data.updatedAt is timestamp)
+        && isValidCommentFields(data);
+    }
+
+    function isValidUserPrivateCreate(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'tier', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'tier', 'aiCreditsUsed', 'aiQuotaCycle', 'createdAt'])
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && isBoundedString(data.email, 3, 254)
+        && isBoundedString(data.displayName, 1, 80)
+        && (!('photoURL' in data) || isBoundedString(data.photoURL, 0, 500))
+        && (!('aiCreditsUsed' in data) || (data.aiCreditsUsed is number && data.aiCreditsUsed >= 0 && data.aiCreditsUsed <= 10000))
+        && (!('aiQuotaCycle' in data) || (isBoundedString(data.aiQuotaCycle, 7, 7) && data.aiQuotaCycle.matches('^[0-9]{4}-[0-9]{2}$')))
+        && data.tier == 'Free'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUserPrivateUpdate(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'tier', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'tier', 'aiCreditsUsed', 'aiQuotaCycle', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isBoundedString(data.email, 3, 254)
+        && isBoundedString(data.displayName, 1, 80)
+        && (!('photoURL' in data) || isBoundedString(data.photoURL, 0, 500))
+        && (!('aiCreditsUsed' in data) || (data.aiCreditsUsed is number && data.aiCreditsUsed >= 0 && data.aiCreditsUsed <= 10000))
+        && (!('aiQuotaCycle' in data) || (isBoundedString(data.aiQuotaCycle, 7, 7) && data.aiQuotaCycle.matches('^[0-9]{4}-[0-9]{2}$')))
+        && data.tier in ['Free', 'Haven Pro']
+        && data.createdAt is timestamp
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // 4. Connection Health Check Document
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // 5. Public Global Track Library (Zero PII)
+    match /tracks/{trackId} {
+      allow get: if isValidId(trackId) && (resource == null || existing().visibility == 'public');
+      allow list: if resource.data.visibility == 'public';
+
+      allow create: if isVerifiedEmail()
+        && isValidId(trackId)
+        && isValidTrackCreate(incoming(), trackId)
+        && incoming().createdAt == request.time;
+
+      allow update: if isVerifiedEmail()
+        && isValidId(trackId)
+        && isValidTrackUpdate(incoming())
+        && incoming().id == existing().id
+        && incoming().uploaderUid == existing().uploaderUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'creator', 'description', 'story', 'lyrics', 'genre', 'subgenre', 'mood',
+              'bpm', 'key', 'vocalType', 'aiToolOrigin',
+              'license', 'coverArt', 'categoryConfirmed', 'updatedAt'
+            ])
+          )
+          || (
+            existing().uploaderUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'creator', 'description', 'story', 'lyrics', 'genre', 'subgenre', 'mood',
+              'bpm', 'key', 'vocalType', 'aiToolOrigin',
+              'license', 'coverArt', 'categoryConfirmed', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerifiedEmail()
+        && isValidId(trackId)
+        && (existing().uploaderUid == request.auth.uid || isAdmin());
+
+      // Track Comments Subcollection (Relational Master Gate)
+      match /comments/{commentId} {
+        allow get: if isValidId(trackId) && isValidId(commentId);
+        allow list: if resource.data.trackId == trackId;
+
+        allow create: if isVerifiedEmail()
+          && isValidId(trackId)
+          && isValidId(commentId)
+          && isValidCommentCreate(incoming(), trackId, commentId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/tracks/$(trackId));
+
+        allow update: if isVerifiedEmail()
+          && isValidId(trackId)
+          && isValidId(commentId)
+          && isValidCommentUpdate(incoming())
+          && (
+            isAdmin()
+            || (
+              existing().authorUid == request.auth.uid
+              && incoming().id == existing().id
+              && incoming().trackId == existing().trackId
+              && incoming().authorUid == existing().authorUid
+              && incoming().createdAt == existing().createdAt
+              && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'rating', 'updatedAt'])
+              && incoming().updatedAt == request.time
+            )
+          );
+
+        allow delete: if isVerifiedEmail()
+          && isValidId(trackId)
+          && isValidId(commentId)
+          && (existing().authorUid == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 6. Split Collection Private PII Profiles
+    match /users/{userId}/private/profile {
+      allow get: if isVerifiedEmail() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+
+      allow create: if isVerifiedEmail()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserPrivateCreate(incoming(), userId)
+        && incoming().createdAt == request.time;
+
+      allow update: if isVerifiedEmail()
+        && isValidId(userId)
+        && isValidUserPrivateUpdate(incoming())
+        && (
+          isAdmin()
+          || (
+            isOwner(userId)
+            && incoming().uid == existing().uid
+            && incoming().email == existing().email
+            && incoming().tier == existing().tier
+            && incoming().createdAt == existing().createdAt
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'aiCreditsUsed', 'aiQuotaCycle', 'updatedAt'])
+            && (
+              !('aiCreditsUsed' in incoming())
+              || !('aiCreditsUsed' in existing())
+              || incoming().aiQuotaCycle != existing().aiQuotaCycle
+              || incoming().aiCreditsUsed >= existing().aiCreditsUsed
+            )
+            && incoming().updatedAt == request.time
+          )
+        );
+
+      allow delete: if isVerifiedEmail()
+        && isValidId(userId)
+        && (isOwner(userId) || isAdmin());
+    }
+
+    // 7. Admin Roles Registry
+    match /admins/{userId} {
+      allow get: if isVerifiedEmail() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list, write: if false;
+    }
+
+    // 8. Admin-Managed Public Overrides for Curated Catalog Tracks
+    function isValidCatalogOverride(data, trackId) {
+      return data.keys().hasAll([
+          'id', 'title', 'creator', 'description', 'aiToolOrigin', 'bpm', 'key',
+          'genre', 'subgenre', 'mood', 'vocalType', 'license', 'coverArt',
+          'categoryConfirmed', 'visibility', 'updatedByUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'title', 'creator', 'description', 'story', 'lyrics', 'aiToolOrigin', 'bpm', 'key',
+          'genre', 'subgenre', 'mood', 'vocalType', 'license', 'coverArt',
+          'categoryConfirmed', 'visibility', 'updatedByUid', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.id == trackId
+        && isBoundedString(data.title, 1, 120)
+        && isBoundedString(data.creator, 1, 80)
+        && isBoundedString(data.description, 1, 1000)
+        && (!('story' in data) || isBoundedString(data.story, 0, 1500))
+        && (!('lyrics' in data) || isBoundedString(data.lyrics, 0, 4000))
+        && isBoundedString(data.aiToolOrigin, 1, 60)
+        && data.bpm is number && data.bpm >= 40 && data.bpm <= 240
+        && isBoundedString(data.key, 1, 30)
+        && isBoundedString(data.genre, 1, 60)
+        && isBoundedString(data.subgenre, 1, 60)
+        && isBoundedString(data.mood, 1, 60)
+        && isBoundedString(data.vocalType, 1, 80)
+        && data.license in ['Free Personal', 'Attribution Required', 'Commercial Permitted', 'All Rights Reserved']
+        && isBoundedString(data.coverArt, 1, 500)
+        && data.categoryConfirmed is bool
+        && data.visibility == 'public'
+        && isValidId(data.updatedByUid)
+        && data.updatedByUid == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    match /catalog_overrides/{trackId} {
+      allow get: if isValidId(trackId) && (resource == null || existing().visibility == 'public');
+      allow list: if resource.data.visibility == 'public';
+
+      allow create: if isAdmin()
+        && isValidId(trackId)
+        && isValidCatalogOverride(incoming(), trackId)
+        && incoming().createdAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(trackId)
+        && isValidCatalogOverride(incoming(), trackId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'creator', 'description', 'story', 'lyrics', 'aiToolOrigin', 'bpm', 'key',
+          'genre', 'subgenre', 'mood', 'vocalType', 'license', 'coverArt',
+          'categoryConfirmed', 'updatedByUid', 'updatedAt'
+        ]);
+
+      allow delete: if isAdmin() && isValidId(trackId);
+    }
+
+    // 9. Creator Takedown Notices (Visible only to Admin and the Owning Creator)
+    function isValidTakedown(data, takedownId) {
+      return data.keys().hasAll([
+          'id', 'trackId', 'trackTitle', 'creatorName', 'targetUploaderUid',
+          'reason', 'autoGenerated', 'adminEmail', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'trackId', 'trackTitle', 'creatorName', 'targetUploaderUid',
+          'reason', 'autoGenerated', 'adminEmail', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.id == takedownId
+        && isValidId(data.trackId)
+        && isBoundedString(data.trackTitle, 1, 120)
+        && isBoundedString(data.creatorName, 1, 80)
+        && isValidId(data.targetUploaderUid)
+        && isBoundedString(data.reason, 5, 1000)
+        && data.autoGenerated is bool
+        && isBoundedString(data.adminEmail, 3, 254)
+        && data.createdAt == request.time;
+    }
+
+    match /takedowns/{takedownId} {
+      allow get: if isVerifiedEmail()
+        && isValidId(takedownId)
+        && (isAdmin() || existing().targetUploaderUid == request.auth.uid);
+
+      allow list: if isVerifiedEmail()
+        && (isAdmin() || resource.data.targetUploaderUid == request.auth.uid);
+
+      allow create: if isAdmin()
+        && isValidId(takedownId)
+        && isValidTakedown(incoming(), takedownId);
+
+      allow update: if false;
+
+      allow delete: if isAdmin() && isValidId(takedownId);
+    }
+
+    // 10. Multi-Device Synchronized Listening Rooms
+    function isValidRoomCode(code) {
+      return code is string && code.size() >= 4 && code.size() <= 8 && code.matches('^[A-Z0-9]+$');
+    }
+
+    function isValidListeningRoom(data, roomCode) {
+      return data.keys().hasAll([
+          'code', 'name', 'hostUid', 'hostName', 'trackId', 'trackTitle',
+          'trackCreator', 'trackCoverArt', 'trackDuration', 'isPlaying',
+          'positionSeconds', 'allowGuestControl', 'visibility', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'code', 'name', 'hostUid', 'hostName', 'trackId', 'trackTitle',
+          'trackCreator', 'trackCoverArt', 'trackDuration', 'isPlaying',
+          'positionSeconds', 'allowGuestControl', 'visibility', 'createdAt', 'updatedAt'
+        ])
+        && isValidRoomCode(data.code)
+        && data.code == roomCode
+        && isBoundedString(data.name, 1, 80)
+        && isValidId(data.hostUid)
+        && isBoundedString(data.hostName, 1, 80)
+        && isValidId(data.trackId)
+        && isBoundedString(data.trackTitle, 1, 120)
+        && isBoundedString(data.trackCreator, 1, 80)
+        && isBoundedString(data.trackCoverArt, 1, 500)
+        && data.trackDuration is number && data.trackDuration >= 1 && data.trackDuration <= 3600
+        && data.isPlaying is bool
+        && data.positionSeconds is number && data.positionSeconds >= 0 && data.positionSeconds <= 3600
+        && data.allowGuestControl is bool
+        && data.visibility == 'room_code'
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    match /listening_rooms/{roomCode} {
+      allow get: if isValidRoomCode(roomCode) && (resource == null || existing().visibility == 'room_code');
+      allow list: if isVerifiedEmail() && resource.data.hostUid == request.auth.uid;
+
+      allow create: if isVerifiedEmail()
+        && isValidRoomCode(roomCode)
+        && isValidListeningRoom(incoming(), roomCode)
+        && incoming().hostUid == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update: if isVerifiedEmail()
+        && isValidRoomCode(roomCode)
+        && isValidListeningRoom(incoming(), roomCode)
+        && incoming().code == existing().code
+        && incoming().hostUid == existing().hostUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          (
+            (existing().hostUid == request.auth.uid || isAdmin())
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'trackId', 'trackTitle', 'trackCreator', 'trackCoverArt',
+              'trackDuration', 'isPlaying', 'positionSeconds', 'allowGuestControl', 'updatedAt'
+            ])
+          )
+          || (
+            existing().allowGuestControl == true
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'trackId', 'trackTitle', 'trackCreator', 'trackCoverArt',
+              'trackDuration', 'isPlaying', 'positionSeconds', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerifiedEmail()
+        && isValidRoomCode(roomCode)
+        && (existing().hostUid == request.auth.uid || isAdmin());
+    }
+  }
+}
