@@ -24,9 +24,10 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import type { HavenTab, TrackTakedownNotice } from '../types/index.ts';
+import type { HavenNotification, HavenTab } from '../types/index.ts';
 import { HavenLogo } from './HavenLogo.tsx';
 import { isAdminUser } from '../utils/accessControl.ts';
+import { getNotificationTypeMeta } from '../utils/notifications.ts';
 
 interface NavigationProps {
   currentTab: HavenTab;
@@ -34,8 +35,12 @@ interface NavigationProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onOpenSearch: () => void;
+  trackCount?: number;
+  notifications?: HavenNotification[];
   unreadCount?: number;
-  takedowns?: TrackTakedownNotice[];
+  onSelectNotification?: (notification: HavenNotification) => void;
+  onOpenNotificationsPage?: () => void;
+  onMarkAllNotificationsRead?: () => void;
   activeRoomCode?: string | null;
   userTier?: 'Free' | 'Haven Pro';
   authUser: User | null;
@@ -50,8 +55,12 @@ export const Navigation: React.FC<NavigationProps> = ({
   searchQuery,
   onSearchChange,
   onOpenSearch,
-  unreadCount = 2,
-  takedowns = [],
+  trackCount,
+  notifications = [],
+  unreadCount = 0,
+  onSelectNotification,
+  onOpenNotificationsPage,
+  onMarkAllNotificationsRead,
   activeRoomCode = null,
   userTier = 'Haven Pro',
   authUser,
@@ -81,48 +90,22 @@ export const Navigation: React.FC<NavigationProps> = ({
     ...(isAdmin ? [{ id: 'admin' as HavenTab, label: 'Admin Dashboard', icon: ShieldAlert }] : []),
   ];
 
-  const creatorTakedownNotifs = authUser
-    ? takedowns
-        .filter((td) => td.targetUploaderUid === authUser.uid)
-        .map((td) => ({
-          id: `td-${td.id}`,
-          title: `Takedown Notice: ${td.trackTitle}`,
-          desc: td.reason,
-          time: td.createdAt || 'Recently',
-          icon: AlertTriangle,
-          iconColor: 'text-[#EF4444]',
-        }))
-    : [];
-
-  const effectiveUnreadCount = unreadCount + creatorTakedownNotifs.length;
-
-  const notifications = [
-    ...creatorTakedownNotifs,
-    {
-      id: 'n-1',
-      title: 'New Track Liked',
-      desc: 'Elena Rostova liked "Obsidian Resonance"',
-      time: '10m ago',
-      icon: Heart,
-      iconColor: 'text-[#8B5CF6]',
-    },
-    {
-      id: 'n-2',
-      title: 'Download Milestone',
-      desc: '"Bioluminescent Dawn" reached 1,000 community downloads!',
-      time: '1h ago',
-      icon: Download,
-      iconColor: 'text-[#06B6D4]',
-    },
-    {
-      id: 'n-3',
-      title: 'Category Verified',
-      desc: 'All 8 metadata attributes confirmed for "Lagos Neon Mirage"',
-      time: '3h ago',
-      icon: CheckCircle2,
-      iconColor: 'text-[#10B981]',
-    },
-  ];
+  const getNotifIcon = (type: HavenNotification['type']) => {
+    switch (type) {
+      case 'takedown':
+        return { Icon: AlertTriangle, color: 'text-[#EF4444]' };
+      case 'moderation_report':
+        return { Icon: ShieldAlert, color: 'text-[#F59E0B]' };
+      case 'track_milestone':
+        return { Icon: Download, color: 'text-[#06B6D4]' };
+      case 'track_liked':
+        return { Icon: Heart, color: 'text-[#8B5CF6]' };
+      case 'category_verified':
+        return { Icon: CheckCircle2, color: 'text-[#10B981]' };
+      case 'track_published':
+        return { Icon: UploadCloud, color: 'text-[#06B6D4]' };
+    }
+  };
 
   const handleTabClick = (tab: HavenTab) => {
     onSelectTab(tab);
@@ -170,7 +153,11 @@ export const Navigation: React.FC<NavigationProps> = ({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={onOpenSearch}
-              placeholder="Search 14,000+ AI tracks, genres, moods, creators..."
+              placeholder={
+                trackCount !== undefined
+                  ? `Search ${trackCount.toLocaleString()} AI tracks, genres, moods, creators...`
+                  : 'Search AI tracks, genres, moods, creators...'
+              }
               className="w-full bg-[#161622]/80 hover:bg-[#161622] focus:bg-[#161622] text-xs text-white placeholder-[#958ea0] pl-10 pr-4 py-2 rounded-xl border border-white/10 focus:border-[#06B6D4]/50 focus:outline-none transition-all shadow-inner"
             />
           </div>
@@ -190,43 +177,111 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Notifications Dropdown */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 rounded-xl text-[#958ea0] hover:text-white hover:bg-white/5 transition-colors relative"
+              className={`p-2 rounded-xl transition-colors relative ${
+                currentTab === 'notifications'
+                  ? 'text-white bg-white/10'
+                  : 'text-[#958ea0] hover:text-white hover:bg-white/5'
+              }`}
               aria-label="Notifications"
             >
               <Bell className="w-4 h-4" />
-              {effectiveUnreadCount > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#06B6D4] ring-2 ring-[#08080C]" />
               )}
             </button>
 
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-[#161622] border border-white/10 p-3 shadow-2xl z-50 backdrop-blur-2xl">
-                <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-2">
-                  <span className="font-display font-semibold text-xs text-white">Notifications</span>
-                  <span className="text-[10px] font-mono-tech text-[#06B6D4]">{effectiveUnreadCount} new</span>
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-[#161622] border border-white/10 p-3 shadow-2xl z-50 backdrop-blur-2xl">
+                <div className="flex items-center justify-between pb-2.5 border-b border-white/10 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-display font-semibold text-xs text-white">Notifications</span>
+                    <span className="text-[11px] font-mono-tech text-[#06B6D4] tabular-nums">
+                      {unreadCount} unread
+                    </span>
+                  </div>
+                  {unreadCount > 0 && onMarkAllNotificationsRead && (
+                    <button
+                      type="button"
+                      onClick={() => onMarkAllNotificationsRead()}
+                      className="text-[11px] text-[#958ea0] hover:text-white transition-colors"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
-                <div className="space-y-1.5">
-                  {notifications.map((n) => {
-                    const Icon = n.icon;
-                    return (
-                      <div
-                        key={n.id}
-                        className="p-2 rounded-xl hover:bg-white/5 transition-colors flex gap-2.5 items-start cursor-pointer"
-                      >
-                        <div className="p-1.5 rounded-lg bg-white/5 shrink-0 mt-0.5">
-                          <Icon className={`w-3.5 h-3.5 ${n.iconColor}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-white truncate">{n.title}</span>
-                            <span className="text-[9px] font-mono-tech text-[#958ea0]">{n.time}</span>
+
+                {notifications.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-[#958ea0]">
+                    No active notifications.
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-80 overflow-y-auto pr-0.5">
+                    {notifications.slice(0, 8).map((n) => {
+                      const { Icon, color } = getNotifIcon(n.type);
+                      const typeMeta = getNotificationTypeMeta(n.type);
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => {
+                            setShowNotifications(false);
+                            setIsMobileMenuOpen(false);
+                            onSelectNotification?.(n);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-colors flex gap-2.5 items-start ${
+                            n.read ? 'hover:bg-white/5' : 'bg-white/[0.04] hover:bg-white/[0.08]'
+                          }`}
+                        >
+                          <div className="p-1.5 rounded-lg bg-white/5 shrink-0 mt-0.5">
+                            <Icon className={`w-3.5 h-3.5 ${color}`} />
                           </div>
-                          <p className="text-[11px] text-[#958ea0] line-clamp-2 mt-0.5">{n.desc}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 text-[10px] font-mono-tech text-[#958ea0]">
+                              <span className={`${typeMeta.accentText} truncate`}>
+                                {typeMeta.label}
+                              </span>
+                              <span className="shrink-0 tabular-nums">{n.time}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {!n.read && (
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full bg-[#06B6D4] shrink-0"
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <span className="text-xs font-medium text-white truncate">
+                                {n.title}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#958ea0] line-clamp-2 mt-0.5">
+                              {n.message}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="pt-2.5 mt-2 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotifications(false);
+                      setIsMobileMenuOpen(false);
+                      if (onOpenNotificationsPage) {
+                        onOpenNotificationsPage();
+                      } else {
+                        onSelectTab('notifications');
+                      }
+                    }}
+                    className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-medium text-white flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <span>Open Notification Center</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-[#06B6D4]" />
+                  </button>
                 </div>
               </div>
             )}

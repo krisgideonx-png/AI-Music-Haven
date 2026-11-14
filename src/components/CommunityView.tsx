@@ -17,6 +17,11 @@ import {
   Download
 } from 'lucide-react';
 import type { CommunityPost, CreatorProfile, Playlist, AudioTrack } from '../types/index.ts';
+import {
+  computeCreatorMetricsFromTracks,
+  countExistingPlaylistTracks,
+  formatCompactCount,
+} from '../utils/catalogStats.ts';
 
 interface CommunityViewProps {
   posts: CommunityPost[];
@@ -277,23 +282,26 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
               </div>
 
               <div className="space-y-3">
-                {creators.slice(0, 4).map((c, idx) => (
-                  <div key={c.id} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="font-mono-tech font-bold text-[#958ea0] w-3">
-                        {idx + 1}
-                      </span>
-                      <img src={c.avatar} alt={c.name} className="w-7 h-7 rounded-full object-cover" />
-                      <div className="min-w-0">
-                        <span className="font-medium text-white truncate block">{c.name}</span>
-                        <span className="text-[10px] text-[#958ea0] block font-mono-tech">{c.handle}</span>
+                {creators.slice(0, 4).map((c, idx) => {
+                  const metrics = computeCreatorMetricsFromTracks(c, tracks);
+                  return (
+                    <div key={c.id} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="font-mono-tech font-bold text-[#958ea0] w-3">
+                          {idx + 1}
+                        </span>
+                        <img src={c.avatar} alt={c.name} className="w-7 h-7 rounded-full object-cover" />
+                        <div className="min-w-0">
+                          <span className="font-medium text-white truncate block">{c.name}</span>
+                          <span className="text-[10px] text-[#958ea0] block font-mono-tech">{c.handle}</span>
+                        </div>
                       </div>
+                      <span className="text-[10px] font-mono-tech text-[#06B6D4] tabular-nums">
+                        {formatCompactCount(metrics.totalPlays)} plays
+                      </span>
                     </div>
-                    <span className="text-[10px] font-mono-tech text-[#06B6D4]">
-                      {(c.totalPlays / 1000).toFixed(0)}k plays
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -313,85 +321,93 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
       {/* Tab: Creator Leaderboard */}
       {activeTab === 'creators' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {creators.map((c, idx) => (
-            <div
-              key={c.id}
-              className="p-5 rounded-2xl bg-[#161622]/70 border border-white/10 space-y-4"
-            >
-              <div className="flex items-start gap-3.5">
-                <div className="relative">
-                  <img src={c.avatar} alt={c.name} className="w-14 h-14 rounded-full object-cover border-2 border-[#8B5CF6]/40" />
-                  <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#8B5CF6] text-white text-[10px] font-bold flex items-center justify-center font-mono-tech">
-                    #{idx + 1}
-                  </span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-display font-bold text-sm text-white truncate">{c.name}</h3>
-                    {c.verified && <CheckCircle2 className="w-3.5 h-3.5 text-[#06B6D4]" />}
+          {creators.map((c, idx) => {
+            const metrics = computeCreatorMetricsFromTracks(c, tracks);
+            return (
+              <div
+                key={c.id}
+                className="p-5 rounded-2xl bg-[#161622]/70 border border-white/10 space-y-4"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="relative">
+                    <img src={c.avatar} alt={c.name} className="w-14 h-14 rounded-full object-cover border-2 border-[#8B5CF6]/40" />
+                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#8B5CF6] text-white text-[10px] font-bold flex items-center justify-center font-mono-tech">
+                      #{idx + 1}
+                    </span>
                   </div>
-                  <span className="text-xs font-mono-tech text-[#958ea0] block">{c.handle}</span>
-                  <p className="text-xs text-[#cbc3d7] mt-1 line-clamp-2">{c.bio}</p>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[#08080C] border border-white/5 text-center text-xs font-mono-tech">
-                <div>
-                  <span className="text-white block font-bold">{c.followers.toLocaleString()}</span>
-                  <span className="text-[10px] text-[#958ea0]">Followers</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-display font-bold text-sm text-white truncate">{c.name}</h3>
+                      {c.verified && <CheckCircle2 className="w-3.5 h-3.5 text-[#06B6D4]" />}
+                    </div>
+                    <span className="text-xs font-mono-tech text-[#958ea0] block">{c.handle}</span>
+                    <p className="text-xs text-[#cbc3d7] mt-1 line-clamp-2">{c.bio}</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[#06B6D4] block font-bold">{c.totalPlays.toLocaleString()}</span>
-                  <span className="text-[10px] text-[#958ea0]">Total Plays</span>
-                </div>
-                <div>
-                  <span className="text-[#10B981] block font-bold">{c.totalDownloads.toLocaleString()}</span>
-                  <span className="text-[10px] text-[#958ea0]">Downloads</span>
-                </div>
-              </div>
 
-              <button className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-mono-tech transition-colors">
-                Follow Creator
-              </button>
-            </div>
-          ))}
+                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[#08080C] border border-white/5 text-center text-xs font-mono-tech">
+                  <div>
+                    <span className="text-white block font-bold tabular-nums">{c.followers.toLocaleString()}</span>
+                    <span className="text-[10px] text-[#958ea0]">Followers</span>
+                  </div>
+                  <div>
+                    <span className="text-[#06B6D4] block font-bold tabular-nums">{metrics.totalPlays.toLocaleString()}</span>
+                    <span className="text-[10px] text-[#958ea0]">Total Plays</span>
+                  </div>
+                  <div>
+                    <span className="text-[#10B981] block font-bold tabular-nums">{metrics.totalDownloads.toLocaleString()}</span>
+                    <span className="text-[10px] text-[#958ea0]">Downloads</span>
+                  </div>
+                </div>
+
+                <button className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-mono-tech transition-colors">
+                  Follow Creator
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Tab: Collaborative Playlists */}
       {activeTab === 'playlists' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {playlists.map((pl) => (
-            <div
-              key={pl.id}
-              className="p-5 rounded-2xl bg-[#161622]/70 border border-white/10 space-y-4"
-            >
-              <div className="flex items-start gap-4">
-                <img src={pl.coverArt} alt={pl.title} className="w-20 h-20 rounded-xl object-cover shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-display font-bold text-base text-white truncate">{pl.title}</h3>
-                    {pl.isCollaborative && (
-                      <span className="text-[9px] font-mono-tech px-2 py-0.5 rounded-full bg-[#8B5CF6]/30 text-[#acedff] border border-[#8B5CF6]/40 shrink-0">
-                        Collaborative
-                      </span>
-                    )}
+          {playlists.map((pl) => {
+            const activeTrackCount = countExistingPlaylistTracks(pl, tracks);
+            return (
+              <div
+                key={pl.id}
+                className="p-5 rounded-2xl bg-[#161622]/70 border border-white/10 space-y-4"
+              >
+                <div className="flex items-start gap-4">
+                  <img src={pl.coverArt} alt={pl.title} className="w-20 h-20 rounded-xl object-cover shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-bold text-base text-white truncate">{pl.title}</h3>
+                      {pl.isCollaborative && (
+                        <span className="text-[9px] font-mono-tech px-2 py-0.5 rounded-full bg-[#8B5CF6]/30 text-[#acedff] border border-[#8B5CF6]/40 shrink-0">
+                          Collaborative
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-[#958ea0] block">Curated by {pl.creator}</span>
+                    <p className="text-xs text-[#cbc3d7] mt-1 line-clamp-2">{pl.description}</p>
                   </div>
-                  <span className="text-xs text-[#958ea0] block">Curated by {pl.creator}</span>
-                  <p className="text-xs text-[#cbc3d7] mt-1 line-clamp-2">{pl.description}</p>
+                </div>
+
+                <div className="flex items-center justify-between text-xs font-mono-tech text-[#958ea0] pt-2 border-t border-white/5 tabular-nums">
+                  <span>
+                    {activeTrackCount} {activeTrackCount === 1 ? 'track' : 'tracks'} cataloged
+                  </span>
+                  <span className="text-[#8B5CF6] flex items-center gap-1">
+                    <Heart className="w-3.5 h-3.5 fill-current" />
+                    {pl.likes.toLocaleString()}
+                  </span>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between text-xs font-mono-tech text-[#958ea0] pt-2 border-t border-white/5">
-                <span>{pl.trackIds.length} tracks cataloged</span>
-                <span className="text-[#8B5CF6] flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5 fill-current" />
-                  {pl.likes}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

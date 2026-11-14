@@ -77,11 +77,64 @@ export const GenresView: React.FC<GenresViewProps> = ({
       subgenres: ['Berlin Acid', 'Peak-Time Warehouse', 'Minimal Hypnotic'],
       accent: '#EC4899',
     },
+    {
+      id: 'Indie Pop',
+      title: 'Indie Pop & Alt-R&B',
+      desc: 'Warm acoustic guitars, intimate vocal storytelling, bedroom indie folk textures, and heartfelt alt-R&B harmonies.',
+      subgenres: ['Alt-R&B Soul', 'Bedroom Indie Folk'],
+      accent: '#F97316',
+    },
+    {
+      id: 'Electronic',
+      title: 'Electronic & Trance',
+      desc: 'Euphoric vocal trance, rolling sub basslines, shimmering arpeggiators, and progressive club builds.',
+      subgenres: ['Uplifting Trance', 'Progressive Trance', 'Melodic Progressive House'],
+      accent: '#06B6D4',
+    },
+    {
+      id: 'Synthwave',
+      title: 'Synthwave & Retrowave',
+      desc: 'Nostalgic 80s analog sawtooth leads, gated reverb drums, and twilight highway synth grooves.',
+      subgenres: ['Outrun Retrowave', 'Retro Synthwave'],
+      accent: '#EC4899',
+    },
+    {
+      id: 'Hyperpop',
+      title: 'Hyperpop & Glitch Pop',
+      desc: 'High-octane distorted 808s, pitch-shifted vocal chops, and explosive hyper-melodic synth arps.',
+      subgenres: ['Glitch Pop', 'Neo-Hyperpop'],
+      accent: '#A855F7',
+    },
   ];
 
-  const displayedTracks = activeGenre === 'All' 
-    ? tracks 
-    : tracks.filter(t => t.genre.toLowerCase().includes(activeGenre.toLowerCase()));
+  const knownGenreIds = new Set(genreList.map((g) => g.id.toLowerCase()));
+  const extraGenreCards = Array.from(
+    new Set(
+      tracks
+        .map((t) => (t.genre || '').trim())
+        .filter((g) => g.length > 0 && !knownGenreIds.has(g.toLowerCase()))
+    )
+  ).map((genreName) => ({
+    id: genreName,
+    title: genreName,
+    desc: `Community-uploaded AI compositions categorized under ${genreName}.`,
+    subgenres: Array.from(
+      new Set(
+        tracks
+          .filter((t) => t.genre.toLowerCase() === genreName.toLowerCase())
+          .map((t) => t.subgenre)
+          .filter(Boolean)
+      )
+    ).slice(0, 3),
+    accent: '#06B6D4',
+  }));
+
+  const fullGenreList = [...genreList, ...extraGenreCards];
+
+  const displayedTracks =
+    activeGenre === 'All'
+      ? tracks
+      : tracks.filter((t) => t.genre.toLowerCase() === activeGenre.toLowerCase());
 
   return (
     <div className="space-y-8 pb-24">
@@ -100,9 +153,9 @@ export const GenresView: React.FC<GenresViewProps> = ({
 
       {/* Genre Grid Selector Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {genreList.map((g) => {
+        {fullGenreList.map((g) => {
           const isSelected = activeGenre === g.id;
-          const count = tracks.filter(t => t.genre.toLowerCase().includes(g.id.toLowerCase())).length;
+          const count = tracks.filter((t) => t.genre.toLowerCase() === g.id.toLowerCase()).length;
           return (
             <div
               key={g.id}
@@ -118,8 +171,8 @@ export const GenresView: React.FC<GenresViewProps> = ({
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: g.accent }}
                 />
-                <span className="text-[10px] font-mono-tech text-[#958ea0]">
-                  {count} songs in library
+                <span className="text-[10px] font-mono-tech text-[#958ea0] tabular-nums">
+                  {count.toLocaleString()} {count === 1 ? 'song' : 'songs'} in library
                 </span>
               </div>
 

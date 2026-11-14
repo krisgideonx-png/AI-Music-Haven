@@ -52,5 +52,6 @@ test('firestore.rules satisfies all 8 security pillars and blueprint collections
   assert.match(rules, /isValidListeningRoom/);
   assert.match(rules, /isBoundedString\(data\.story, 0, 1500\)/);
   assert.match(rules, /isBoundedString\(data\.lyrics, 0, 4000\)/);
+  assert.match(rules, /data\.takenDown is bool/);
   assert.match(rules, /aiCreditsUsed/);
 });

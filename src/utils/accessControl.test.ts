@@ -69,6 +69,17 @@ test('canEditTrack lets admin edit ALL songs while creators can ONLY edit their 
   // Creator B can edit ONLY their own uploads
   assert.equal(canEditTrack(songByB, creatorB), true);
   assert.equal(canEditTrack(songByA, creatorB), false);
+
+  // Delete permissions: both owning creator and admin can delete; non-owners and guests cannot
+  assert.equal(canDeleteTrack(seededSong, null), false);
+  assert.equal(canDeleteTrack(songByA, null), false);
+  assert.equal(canDeleteTrack(seededSong, admin), true);
+  assert.equal(canDeleteTrack(songByA, admin), true);
+  assert.equal(canDeleteTrack(songByA, creatorA), true);
+  assert.equal(canDeleteTrack(songByB, creatorA), false);
+  assert.equal(canDeleteTrack(seededSong, creatorA), false);
+  assert.equal(canDeleteTrack(songByB, creatorB), true);
+  assert.equal(canDeleteTrack(songByA, creatorB), false);
 });
 
 test('getCreatorUploadedTracks filters catalog strictly to tracks uploaded by the user', () => {

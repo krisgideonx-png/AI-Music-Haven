@@ -51,6 +51,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [takedownTarget, setTakedownTarget] = useState<AudioTrack | null>(null);
   const [takedownReason, setTakedownReason] = useState('');
   const [isTakingDown, setIsTakingDown] = useState(false);
+  const [takedownError, setTakedownError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const userUploadCount = useMemo(
@@ -94,12 +95,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleOpenTakedownModal = (track: AudioTrack) => {
     setTakedownTarget(track);
     setTakedownReason('');
+    setTakedownError(null);
   };
 
   const handleConfirmTakedown = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onTakeDownTrack || !takedownTarget) return;
 
+    setTakedownError(null);
     setIsTakingDown(true);
     try {
       let finalReason = takedownReason.trim();
@@ -139,6 +142,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setTakedownTarget(null);
       setTakedownReason('');
       setTimeout(() => setActionNotice(null), 5000);
+    } catch (err) {
+      setTakedownError(
+        err instanceof Error ? err.message : 'Unable to take down song right now. Please try again.'
+      );
     } finally {
       setIsTakingDown(false);
     }
@@ -624,6 +631,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   : 'No reason entered yet — submitting now will automatically generate a clear, policy-based notice for the creator.'}
               </p>
             </div>
+
+            {takedownError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300">
+                {takedownError}
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
               <button

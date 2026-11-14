@@ -452,6 +452,9 @@
         "categoryConfirmed": {
           "type": "boolean"
         },
+        "takenDown": {
+          "type": "boolean"
+        },
         "visibility": {
           "type": "string",
           "enum": ["public"]

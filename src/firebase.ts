@@ -229,7 +229,8 @@ export async function deleteTrackFromFirestore(trackId: string): Promise<void> {
 export async function saveCatalogOverrideToFirestore(
   baseTrack: AudioTrack,
   updates: Partial<AudioTrack>,
-  adminUid: string
+  adminUid: string,
+  options?: { takenDown?: boolean }
 ): Promise<void> {
   const safeUpdates = sanitizeTrackUpdates(updates);
   const merged = { ...baseTrack, ...safeUpdates };
@@ -243,7 +244,7 @@ export async function saveCatalogOverrideToFirestore(
   const path = `catalog_overrides/${safeId}`;
   const docRef = doc(db, 'catalog_overrides', safeId);
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     title: sanitizeString(merged.title, 120, 'Untitled AI Track'),
     creator: sanitizeString(merged.creator, 80, 'Haven Creator'),
     description: sanitizeString(merged.description, 1000, 'Uploaded to AI Music Haven.'),
@@ -266,6 +267,10 @@ export async function saveCatalogOverrideToFirestore(
     updatedByUid: sanitizeString(adminUid, 128),
     updatedAt: serverTimestamp(),
   };
+
+  if (typeof options?.takenDown === 'boolean') {
+    payload.takenDown = options.takenDown;
+  }
 
   let snapExists = false;
   try {
@@ -297,7 +302,7 @@ export async function saveCatalogOverrideToFirestore(
 }
 
 export function subscribeToCatalogOverrides(
-  onOverrides: (overrides: Record<string, Partial<AudioTrack>>) => void,
+  onOverrides: (overrides: Record<string, Partial<AudioTrack>>, takenDownIds: Set<string>) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
   const path = 'catalog_overrides';
@@ -311,9 +316,13 @@ export function subscribeToCatalogOverrides(
     q,
     (snapshot) => {
       const overrides: Record<string, Partial<AudioTrack>> = {};
+      const takenDownIds = new Set<string>();
       snapshot.docs.forEach((docSnap) => {
         const d = docSnap.data();
         const id = String(d.id || docSnap.id);
+        if (d.takenDown === true) {
+          takenDownIds.add(id);
+        }
         overrides[id] = {
           title: typeof d.title === 'string' ? d.title : undefined,
           creator: typeof d.creator === 'string' ? d.creator : undefined,
@@ -332,7 +341,7 @@ export function subscribeToCatalogOverrides(
           categoryConfirmed: typeof d.categoryConfirmed === 'boolean' ? d.categoryConfirmed : undefined,
         };
       });
-      onOverrides(overrides);
+      onOverrides(overrides, takenDownIds);
     },
     (error) => {
       try {

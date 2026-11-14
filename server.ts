@@ -16,7 +16,14 @@ import {
   type UserAiQuotaState,
 } from './src/utils/aiQuota.ts';
 import { buildStoryGenerationPrompt, buildFallbackStory } from './src/utils/storyBuilder.ts';
-import type { ListeningRoom, ListeningRoomParticipant } from './src/types/index.ts';
+import { INITIAL_TRACKS } from './src/data/initialTracks.ts';
+import { parseTrackIdFromSearch } from './src/utils/trackShare.ts';
+import {
+  resolveRequestOrigin,
+  resolveShareMetadata,
+  injectOpenGraphMeta,
+} from './src/utils/ogMeta.ts';
+import type { AudioTrack, ListeningRoom, ListeningRoomParticipant } from './src/types/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1274,19 +1281,155 @@ async function createServer() {
     res.json({ ok: true });
   });
 
+  // Serve robots.txt explicitly so social crawlers (Twitterbot/1.0, facebookexternalhit) never hit HTML fallback
+  app.get('/robots.txt', (_req, res) => {
+    const prodPath = path.resolve(__dirname, 'dist', 'robots.txt');
+    const publicPath = path.resolve(process.cwd(), 'public', 'robots.txt');
+    const resolved = fs.existsSync(prodPath) ? prodPath : publicPath;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (fs.existsSync(resolved)) {
+      res.sendFile(resolved);
+      return;
+    }
+    res.send('User-agent: Twitterbot\nAllow: /\n\nUser-agent: *\nAllow: /\n');
+  });
+
+  // Serve social share banner image explicitly with open CORS + caching for crawlers
+  app.get('/og-image.jpg', (_req, res) => {
+    const prodPath = path.resolve(__dirname, 'dist', 'og-image.jpg');
+    const publicPath = path.resolve(process.cwd(), 'public', 'og-image.jpg');
+    const resolved = fs.existsSync(prodPath) ? prodPath : publicPath;
+    if (!fs.existsSync(resolved)) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(resolved);
+  });
+
+  // Resolve track metadata for ?track=<id> social crawlers (starter catalog + public Firestore tracks)
+  let cachedFirebaseConfig: { projectId?: string; firestoreDatabaseId?: string } | null = null;
+  const getFirebaseIds = () => {
+    if (cachedFirebaseConfig) return cachedFirebaseConfig;
+    try {
+      const cfgPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+      cachedFirebaseConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    } catch {
+      cachedFirebaseConfig = {};
+    }
+    return cachedFirebaseConfig!;
+  };
+
+  const resolveTrackForOg = async (trackId: string | null): Promise<Partial<AudioTrack> | null> => {
+    if (!trackId) return null;
+    const starter = INITIAL_TRACKS.find((t) => t.id === trackId);
+    if (starter) return starter;
+
+    if (!/^[a-zA-Z0-9_-]{3,128}$/.test(trackId)) return null;
+    const { projectId, firestoreDatabaseId } = getFirebaseIds();
+    if (!projectId || !firestoreDatabaseId) return null;
+
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(firestoreDatabaseId)}/documents/tracks/${encodeURIComponent(trackId)}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(1500) });
+      if (!resp.ok) return null;
+      const docJson = (await resp.json()) as {
+        fields?: Record<string, { stringValue?: string; integerValue?: string; doubleValue?: number }>;
+      };
+      const f = docJson.fields;
+      if (!f) return null;
+      return {
+        id: trackId,
+        title: f.title?.stringValue || 'Untitled AI Track',
+        creator: f.creator?.stringValue || 'Haven Creator',
+        genre: f.genre?.stringValue || 'Electronic',
+        bpm: Number(f.bpm?.integerValue || f.bpm?.doubleValue || 120),
+        aiToolOrigin: f.aiToolOrigin?.stringValue || 'AI Music Studio',
+        description: f.description?.stringValue || '',
+        coverArt: f.coverArt?.stringValue || '',
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const buildRenderedHtmlWithOg = async (
+    baseHtml: string,
+    req: express.Request
+  ): Promise<string> => {
+    const origin = resolveRequestOrigin({
+      headers: req.headers,
+      protocol: req.protocol,
+      appUrl: process.env.APP_URL,
+    });
+    const queryIdx = req.originalUrl.indexOf('?');
+    const search = queryIdx >= 0 ? req.originalUrl.slice(queryIdx) : '';
+    const trackId = parseTrackIdFromSearch(search);
+    const track = await resolveTrackForOg(trackId);
+    const meta = resolveShareMetadata({
+      origin,
+      pathname: req.path === '/index.html' ? '/' : req.path || '/',
+      track,
+    });
+    return injectOpenGraphMeta(baseHtml, meta);
+  };
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
+    app.use(async (req, res, next) => {
+      const accept = String(req.headers.accept || '');
+      const isHtmlPageReq =
+        (req.method === 'GET' || req.method === 'HEAD') &&
+        !req.path.startsWith('/api/') &&
+        !req.path.startsWith('/assets/') &&
+        !req.path.startsWith('/src/') &&
+        !req.path.startsWith('/@') &&
+        !req.path.startsWith('/node_modules/') &&
+        (req.path === '/' || req.path === '/index.html' || !path.extname(req.path)) &&
+        (accept.includes('text/html') || accept === '*/*' || !accept);
+
+      if (!isHtmlPageReq) {
+        next();
+        return;
+      }
+
+      try {
+        const templatePath = path.resolve(process.cwd(), 'index.html');
+        const rawTemplate = fs.readFileSync(templatePath, 'utf8');
+        const transformed = await vite.transformIndexHtml(req.originalUrl, rawTemplate);
+        const finalHtml = await buildRenderedHtmlWithOg(transformed, req);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(finalHtml);
+      } catch (err) {
+        vite.ssrFixStacktrace?.(err as Error);
+        next(err);
+      }
+    });
+
     app.use(vite.middlewares);
   } else {
     const distDir = path.resolve(__dirname, 'dist');
-    app.use(express.static(distDir));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distDir, 'index.html'));
-    });
+    const renderProdHtml = async (req: express.Request, res: ExpressResponse) => {
+      try {
+        const htmlPath = path.join(distDir, 'index.html');
+        const rawHtml = fs.readFileSync(htmlPath, 'utf8');
+        const finalHtml = await buildRenderedHtmlWithOg(rawHtml, req);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(finalHtml);
+      } catch {
+        res.sendFile(path.join(distDir, 'index.html'));
+      }
+    };
+
+    app.get(['/', '/index.html'], renderProdHtml);
+    app.use(express.static(distDir, { index: false }));
+    app.get('*', renderProdHtml);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

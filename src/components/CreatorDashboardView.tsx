@@ -11,16 +11,20 @@ import {
   ShieldAlert,
   Lock,
   AlertTriangle,
+  Trash2,
+  X,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { AudioTrack, TrackTakedownNotice } from '../types/index.ts';
 import {
   isAdminUser,
   canEditTrack,
+  canDeleteTrack,
   getCreatorUploadedTracks,
 } from '../utils/accessControl.ts';
 import { UserAiCapBadge } from './UserAiCapBadge.tsx';
 import type { UserAiQuotaState } from '../utils/aiQuota.ts';
+import { computeCreatorAnalyticsDistribution } from '../utils/catalogStats.ts';
 
 interface CreatorDashboardViewProps {
   tracks: AudioTrack[];
@@ -32,6 +36,7 @@ interface CreatorDashboardViewProps {
   onOpenAdminDashboard?: () => void;
   onOpenTrackDetails: (track: AudioTrack) => void;
   onEditTrackDetails: (track: AudioTrack) => void;
+  onDeleteTrack?: (track: AudioTrack) => Promise<void> | void;
 }
 
 export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
@@ -44,8 +49,26 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   onOpenAdminDashboard,
   onOpenTrackDetails,
   onEditTrackDetails,
+  onDeleteTrack,
 }) => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('30d');
+  const [deleteTarget, setDeleteTarget] = useState<AudioTrack | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!onDeleteTrack || !deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteTrack(deleteTarget);
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Unable to delete song right now.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const isAdmin = isAdminUser(authUser);
   const myTracks = getCreatorUploadedTracks(tracks, authUser);
@@ -53,16 +76,14 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     ? takedowns.filter((td) => td.targetUploaderUid === authUser.uid)
     : [];
 
-  const totalPlays = myTracks.reduce((acc, t) => acc + t.plays, 0);
-  const totalDownloads = myTracks.reduce((acc, t) => acc + t.downloads, 0);
-
-  const countries = [
-    { name: 'United States', percentage: '38%', count: '68.4k' },
-    { name: 'Japan', percentage: '22%', count: '39.6k' },
-    { name: 'Germany', percentage: '16%', count: '28.8k' },
-    { name: 'United Kingdom', percentage: '14%', count: '25.2k' },
-    { name: 'Nigeria', percentage: '10%', count: '18.0k' },
-  ];
+  const totalPlays = myTracks.reduce((acc, t) => acc + (t.plays || 0), 0);
+  const totalDownloads = myTracks.reduce((acc, t) => acc + (t.downloads || 0), 0);
+  const totalLikes = myTracks.reduce((acc, t) => acc + (t.likes || 0), 0);
+  const followerCount =
+    myTracks.length > 0
+      ? Math.max(...myTracks.map((t) => Math.max(0, t.creatorFollowers || 0)))
+      : 0;
+  const analytics = computeCreatorAnalyticsDistribution(totalPlays, timeRange);
 
   return (
     <div className="space-y-8 pb-24">
@@ -164,11 +185,15 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             <span>Haven Followers</span>
             <Users className="w-4 h-4 text-[#F59E0B]" />
           </div>
-          <span className="font-display font-bold text-2xl sm:text-3xl text-white block">
-            {authUser ? '3,420' : '—'}
+          <span className="font-display font-bold text-2xl sm:text-3xl text-white block tabular-nums">
+            {authUser ? followerCount.toLocaleString() : '—'}
           </span>
-          <div className="flex items-center gap-1 text-[11px] font-mono-tech text-[#06B6D4]">
-            <span>{authUser ? 'Verified creator profile' : 'Sign in to sync profile'}</span>
+          <div className="flex items-center gap-1 text-[11px] font-mono-tech text-[#06B6D4] tabular-nums">
+            <span>
+              {authUser
+                ? `${totalLikes.toLocaleString()} track like${totalLikes === 1 ? '' : 's'}`
+                : 'Sign in to sync profile'}
+            </span>
           </div>
         </div>
 
@@ -195,21 +220,33 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
               <h3 className="font-display font-semibold text-sm sm:text-base text-white">
                 Listening Trends Over Time
               </h3>
-              <span className="text-[11px] text-[#958ea0]">Daily stream distribution</span>
+              <span className="text-[11px] text-[#958ea0] tabular-nums">
+                {analytics.scopedTotalPlays.toLocaleString()} stream{analytics.scopedTotalPlays === 1 ? '' : 's'} in selected window
+              </span>
             </div>
-            <span className="text-xs font-mono-tech text-[#06B6D4]">Peak: 8,420 plays</span>
+            <span className="text-xs font-mono-tech text-[#06B6D4] tabular-nums">
+              Peak: {analytics.peakPlays.toLocaleString()} play{analytics.peakPlays === 1 ? '' : 's'}
+            </span>
           </div>
 
           {/* Bar Visualization */}
           <div className="h-44 flex items-end justify-between gap-1.5 pt-6 px-1">
-            {[34, 45, 62, 58, 80, 72, 90, 84, 95, 68, 76, 88, 100, 92].map((height, i) => (
-              <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-1.5 group">
+            {analytics.bars.map((bar) => (
+              <div
+                key={bar.label}
+                className="flex-1 h-full flex flex-col justify-end items-center gap-1.5 group"
+                title={`${bar.label}: ${bar.plays.toLocaleString()} plays`}
+              >
                 <div
-                  className="w-full bg-gradient-to-t from-[#8B5CF6]/40 via-[#8B5CF6] to-[#06B6D4] rounded-t-lg transition-all group-hover:brightness-125 group-hover:shadow-[0_0_12px_#06B6D4]"
-                  style={{ height: `${height}%` }}
+                  className={`w-full rounded-t-lg transition-all ${
+                    bar.heightPercent > 0
+                      ? 'bg-gradient-to-t from-[#8B5CF6]/40 via-[#8B5CF6] to-[#06B6D4] group-hover:brightness-125 group-hover:shadow-[0_0_12px_#06B6D4]'
+                      : 'bg-white/10 min-h-[3px]'
+                  }`}
+                  style={{ height: bar.heightPercent > 0 ? `${bar.heightPercent}%` : '3px' }}
                 />
                 <span className="text-[9px] font-mono-tech text-[#958ea0] opacity-60 shrink-0">
-                  d{i + 1}
+                  {bar.label}
                 </span>
               </div>
             ))}
@@ -222,16 +259,18 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             Audience Distribution
           </h3>
           <div className="space-y-3">
-            {countries.map((c) => (
+            {analytics.regions.map((c) => (
               <div key={c.name} className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-white">{c.name}</span>
-                  <span className="font-mono-tech text-[#06B6D4]">{c.count}</span>
+                  <span className="font-mono-tech text-[#06B6D4] tabular-nums">
+                    {c.formattedPlays} ({c.percentageLabel})
+                  </span>
                 </div>
                 <div className="h-1.5 bg-[#08080C] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] rounded-full"
-                    style={{ width: c.percentage }}
+                    className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#06B6D4] rounded-full transition-all"
+                    style={{ width: c.percentageLabel }}
                   />
                 </div>
               </div>
@@ -275,7 +314,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             Your Uploaded Songs ({myTracks.length})
           </h3>
           <span className="text-xs font-mono-tech text-[#958ea0]">
-            Creators can edit only their own uploads
+            Creators can edit or delete only their own uploads
           </span>
         </div>
 
@@ -354,6 +393,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                 <tbody className="divide-y divide-white/5 text-[#cbc3d7]">
                   {myTracks.map((t) => {
                     const editable = canEditTrack(t, authUser);
+                    const deletable = canDeleteTrack(t, authUser);
                     return (
                       <tr key={t.id} className="hover:bg-white/[0.02] transition-colors">
                         <td className="py-3 px-4 flex items-center gap-2.5">
@@ -388,6 +428,20 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                             >
                               Details
                             </button>
+                            {deletable && onDeleteTrack && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteError(null);
+                                  setDeleteTarget(t);
+                                }}
+                                aria-label={`Delete ${t.title}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#fca5a5] text-[11px] transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3 text-[#EF4444]" />
+                                <span>Delete</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -399,6 +453,69 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Creator Delete Song Confirmation Modal */}
+      {deleteTarget && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isDeleting) setDeleteTarget(null);
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+        >
+          <div className="w-full max-w-md rounded-3xl bg-[#0F0F16] border border-[#EF4444]/40 p-6 space-y-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/10">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-mono-tech text-[#EF4444] uppercase">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Uploaded Song</span>
+                </div>
+                <h3 className="font-display font-bold text-lg text-white">
+                  Delete &ldquo;{deleteTarget.title}&rdquo;?
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(null)}
+                className="p-1.5 rounded-xl text-[#958ea0] hover:text-white hover:bg-white/5"
+                aria-label="Close delete confirmation"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#cbc3d7] leading-relaxed">
+              This will permanently remove <strong className="text-white">{deleteTarget.title}</strong> from AI Music Haven and stop active playback if it is currently playing.
+            </p>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono-tech text-[#958ea0] hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => void handleConfirmDelete()}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#EF4444] hover:bg-[#dc2626] text-white text-xs font-semibold shadow-lg transition-all disabled:opacity-60"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Song'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -53,8 +53,14 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   const query = externalSearchQuery !== undefined ? externalSearchQuery : internalSearch;
   const setQuery = externalOnSearchChange || setInternalSearch;
 
-  const genres = ['All', 'Cyberpunk Ambient', 'Afrobeat', 'Neurofunk', 'Neo-Classical', 'Modular Techno', 'Lo-Fi Chill', 'Hyperpop', 'Synthwave'];
-  const moods = ['All', 'Atmospheric', 'Soulful & Euphoric', 'Relentless High-Energy', 'Peaceful & Introspective', 'Hypnotic & Driving', 'Cozy & Melancholic'];
+  const genres = [
+    'All',
+    ...Array.from(new Set(tracks.map((t) => t.genre.trim()).filter(Boolean))),
+  ];
+  const moods = [
+    'All',
+    ...Array.from(new Set(tracks.map((t) => t.mood.trim()).filter(Boolean))),
+  ];
   const licenses = ['All', 'Free Personal', 'Attribution Required', 'Commercial Permitted', 'All Rights Reserved'];
 
   const filteredTracks = tracks.filter((t) => {
@@ -214,7 +220,10 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
 
       {/* Results Header */}
       <div className="flex items-center justify-between text-xs font-mono-tech text-[#958ea0] pt-1">
-        <span>Showing {sortedTracks.length} completed songs</span>
+        <span className="tabular-nums">
+          Showing {sortedTracks.length.toLocaleString()} completed{' '}
+          {sortedTracks.length === 1 ? 'song' : 'songs'}
+        </span>
         {query && <span>Filter: &quot;{query}&quot;</span>}
       </div>
 

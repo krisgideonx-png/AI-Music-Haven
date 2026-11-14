@@ -21,6 +21,14 @@ import {
 } from 'lucide-react';
 import type { AudioTrack, Playlist, CreatorProfile, HavenTab } from '../types/index.ts';
 import { formatTime } from '../utils/audioMath.ts';
+import {
+  computeCatalogStats,
+  countTracksInHomeGenreBucket,
+  computeCreatorMetricsFromTracks,
+  countExistingPlaylistTracks,
+  formatCompactCount,
+  type HomeGenreBucketId,
+} from '../utils/catalogStats.ts';
 
 interface HomeViewProps {
   tracks: AudioTrack[];
@@ -50,15 +58,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const featuredTrack = tracks[0];
   const trendingTracks = [...tracks].sort((a, b) => b.plays - a.plays).slice(0, 5);
   const recentTracks = [...tracks].slice(0, 4);
-  const mostDownloaded = [...tracks].sort((a, b) => b.downloads - a.downloads).slice(0, 4);
+  const stats = computeCatalogStats(tracks);
 
-  const genres = [
-    { name: 'Cyberpunk Ambient', count: '3,840 songs', color: 'from-[#8B5CF6]/30 to-[#08080C]', border: 'border-[#8B5CF6]/40' },
-    { name: 'Afrobeat & Amapiano', count: '4,120 songs', color: 'from-[#F59E0B]/30 to-[#08080C]', border: 'border-[#F59E0B]/40' },
-    { name: 'Neurofunk & DnB', count: '2,490 songs', color: 'from-[#06B6D4]/30 to-[#08080C]', border: 'border-[#06B6D4]/40' },
-    { name: 'Neo-Classical & Ambient', count: '5,300 songs', color: 'from-[#10B981]/30 to-[#08080C]', border: 'border-[#10B981]/40' },
-    { name: 'Synthwave & Retrowave', count: '3,210 songs', color: 'from-[#EC4899]/30 to-[#08080C]', border: 'border-[#EC4899]/40' },
-    { name: 'Lo-Fi Chillhop', count: '6,140 songs', color: 'from-[#3B82F6]/30 to-[#08080C]', border: 'border-[#3B82F6]/40' },
+  const genres: {
+    id: HomeGenreBucketId;
+    name: string;
+    count: number;
+    color: string;
+    border: string;
+  }[] = [
+    { id: 'cyberpunk', name: 'Cyberpunk Ambient', count: countTracksInHomeGenreBucket(tracks, 'cyberpunk'), color: 'from-[#8B5CF6]/30 to-[#08080C]', border: 'border-[#8B5CF6]/40' },
+    { id: 'afrobeat', name: 'Afrobeat & Amapiano', count: countTracksInHomeGenreBucket(tracks, 'afrobeat'), color: 'from-[#F59E0B]/30 to-[#08080C]', border: 'border-[#F59E0B]/40' },
+    { id: 'neurofunk', name: 'Neurofunk & DnB', count: countTracksInHomeGenreBucket(tracks, 'neurofunk'), color: 'from-[#06B6D4]/30 to-[#08080C]', border: 'border-[#06B6D4]/40' },
+    { id: 'neo-classical', name: 'Neo-Classical & Ambient', count: countTracksInHomeGenreBucket(tracks, 'neo-classical'), color: 'from-[#10B981]/30 to-[#08080C]', border: 'border-[#10B981]/40' },
+    { id: 'synthwave', name: 'Synthwave & Retrowave', count: countTracksInHomeGenreBucket(tracks, 'synthwave'), color: 'from-[#EC4899]/30 to-[#08080C]', border: 'border-[#EC4899]/40' },
+    { id: 'lo-fi', name: 'Lo-Fi Chillhop', count: countTracksInHomeGenreBucket(tracks, 'lo-fi'), color: 'from-[#3B82F6]/30 to-[#08080C]', border: 'border-[#3B82F6]/40' },
   ];
 
   const moods = [
@@ -77,9 +91,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="absolute top-1/2 -right-32 w-96 h-96 rounded-full bg-[#06B6D4]/15 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-5">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-white/10 text-xs font-mono-tech text-[#06B6D4]">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-white/10 text-xs font-mono-tech text-[#06B6D4] tabular-nums">
             <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-            <span>Over 14,000+ Verified AI Compositions Preserved</span>
+            <span>
+              {stats.songCount.toLocaleString()} Verified AI Composition{stats.songCount === 1 ? '' : 's'} Preserved
+            </span>
           </div>
 
           <h1 className="font-display font-extrabold text-3xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.1]">
@@ -128,15 +144,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Hero Stats Ribbon */}
         <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-10 mt-10 border-t border-white/5">
           <div className="space-y-0.5">
-            <span className="font-display font-bold text-xl sm:text-2xl text-white">14,280+</span>
+            <span className="font-display font-bold text-xl sm:text-2xl text-white tabular-nums">
+              {stats.songCount.toLocaleString()}
+            </span>
             <span className="text-xs text-[#958ea0] block">Existing Completed Songs</span>
           </div>
           <div className="space-y-0.5">
-            <span className="font-display font-bold text-xl sm:text-2xl text-[#06B6D4]">3,420+</span>
+            <span className="font-display font-bold text-xl sm:text-2xl text-[#06B6D4] tabular-nums">
+              {stats.creatorCount.toLocaleString()}
+            </span>
             <span className="text-xs text-[#958ea0] block">Global Creators</span>
           </div>
           <div className="space-y-0.5">
-            <span className="font-display font-bold text-xl sm:text-2xl text-[#8B5CF6]">48+</span>
+            <span className="font-display font-bold text-xl sm:text-2xl text-[#8B5CF6] tabular-nums">
+              {stats.genreAndSubgenreCount.toLocaleString()}
+            </span>
             <span className="text-xs text-[#958ea0] block">Genres & Subgenres</span>
           </div>
           <div className="space-y-0.5">
@@ -278,7 +300,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${featuredTrack.isLiked ? 'fill-current' : ''}`} />
-                  <span>{featuredTrack.likes}</span>
+                  <span className="tabular-nums">{featuredTrack.likes.toLocaleString()}</span>
                 </button>
 
                 <button
@@ -286,7 +308,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#08080C] border border-white/10 text-xs font-mono-tech text-[#958ea0] hover:text-white transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>{featuredTrack.downloads}</span>
+                  <span className="tabular-nums">{featuredTrack.downloads.toLocaleString()}</span>
                 </button>
               </div>
             </div>
@@ -479,7 +501,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             onClick={() => onSelectTab('genres')}
             className="text-xs font-mono-tech text-[#8B5CF6] hover:underline flex items-center gap-1"
           >
-            <span>All 48 Genres</span>
+            <span>
+              All {stats.genreCount.toLocaleString()} {stats.genreCount === 1 ? 'Genre' : 'Genres'}
+            </span>
             <ArrowRight className="w-3 h-3" />
           </button>
         </div>
@@ -488,14 +512,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {genres.map((g) => (
             <div
               key={g.name}
-              onClick={() => onSelectTab('explore')}
+              onClick={() => onSelectTab('genres')}
               className={`p-3.5 rounded-2xl bg-gradient-to-b ${g.color} border ${g.border} hover:scale-[1.02] cursor-pointer transition-all flex flex-col justify-between h-28 group`}
             >
               <span className="font-display font-semibold text-xs text-white group-hover:text-[#06B6D4] transition-colors leading-tight">
                 {g.name}
               </span>
               <div>
-                <span className="text-[10px] font-mono-tech text-[#958ea0] block">{g.count}</span>
+                <span className="text-[10px] font-mono-tech text-[#958ea0] block tabular-nums">
+                  {g.count.toLocaleString()} {g.count === 1 ? 'song' : 'songs'}
+                </span>
                 <span className="text-[9px] font-mono-tech text-[#06B6D4] group-hover:translate-x-1 inline-block transition-transform mt-0.5">
                   Browse →
                 </span>
@@ -546,40 +572,43 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {playlists.map((pl) => (
-            <div
-              key={pl.id}
-              onClick={() => onSelectTab('library')}
-              className="rounded-2xl bg-[#161622]/60 hover:bg-[#161622] border border-white/5 hover:border-white/15 p-3.5 space-y-3 cursor-pointer transition-all group"
-            >
-              <div className="relative aspect-video rounded-xl overflow-hidden">
-                <img src={pl.coverArt} alt={pl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                {pl.isCollaborative && (
-                  <span className="absolute top-2 left-2 text-[9px] font-mono-tech px-2 py-0.5 rounded-full bg-[#8B5CF6]/80 backdrop-blur-md text-white border border-white/20">
-                    Collaborative
+          {playlists.map((pl) => {
+            const activeTrackCount = countExistingPlaylistTracks(pl, tracks);
+            return (
+              <div
+                key={pl.id}
+                onClick={() => onSelectTab('library')}
+                className="rounded-2xl bg-[#161622]/60 hover:bg-[#161622] border border-white/5 hover:border-white/15 p-3.5 space-y-3 cursor-pointer transition-all group"
+              >
+                <div className="relative aspect-video rounded-xl overflow-hidden">
+                  <img src={pl.coverArt} alt={pl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  {pl.isCollaborative && (
+                    <span className="absolute top-2 left-2 text-[9px] font-mono-tech px-2 py-0.5 rounded-full bg-[#8B5CF6]/80 backdrop-blur-md text-white border border-white/20">
+                      Collaborative
+                    </span>
+                  )}
+                  <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono-tech text-white tabular-nums">
+                    {activeTrackCount} {activeTrackCount === 1 ? 'track' : 'tracks'}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-display font-semibold text-xs text-white truncate group-hover:text-[#06B6D4] transition-colors">
+                    {pl.title}
+                  </h3>
+                  <p className="text-[11px] text-[#958ea0] line-clamp-2 mt-0.5">{pl.description}</p>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] font-mono-tech text-[#958ea0] pt-1 border-t border-white/5">
+                  <span>By {pl.creator}</span>
+                  <span className="flex items-center gap-1 text-[#8B5CF6] tabular-nums">
+                    <Heart className="w-3 h-3 fill-current" />
+                    {pl.likes.toLocaleString()}
                   </span>
-                )}
-                <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono-tech text-white">
-                  {pl.trackIds.length} tracks
                 </div>
               </div>
-
-              <div>
-                <h3 className="font-display font-semibold text-xs text-white truncate group-hover:text-[#06B6D4] transition-colors">
-                  {pl.title}
-                </h3>
-                <p className="text-[11px] text-[#958ea0] line-clamp-2 mt-0.5">{pl.description}</p>
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] font-mono-tech text-[#958ea0] pt-1 border-t border-white/5">
-                <span>By {pl.creator}</span>
-                <span className="flex items-center gap-1 text-[#8B5CF6]">
-                  <Heart className="w-3 h-3 fill-current" />
-                  {pl.likes}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -600,35 +629,40 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {creators.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => onSelectTab('community')}
-              className="p-4 rounded-2xl bg-[#161622]/60 hover:bg-[#161622] border border-white/5 hover:border-[#10B981]/30 p-4 space-y-3 cursor-pointer transition-all text-center group"
-            >
-              <div className="w-16 h-16 rounded-full mx-auto overflow-hidden border-2 border-[#10B981]/40 group-hover:scale-105 transition-transform shadow-lg">
-                <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
-              </div>
-              <div>
-                <h3 className="font-display font-semibold text-sm text-white flex items-center justify-center gap-1">
-                  {c.name}
-                  {c.verified && <CheckCircle2 className="w-3.5 h-3.5 text-[#06B6D4]" />}
-                </h3>
-                <span className="text-[11px] font-mono-tech text-[#958ea0]">{c.handle}</span>
-              </div>
-              <p className="text-[11px] text-[#958ea0] line-clamp-2 px-1">{c.bio}</p>
-              <div className="pt-2 border-t border-white/5 flex items-center justify-around text-[10px] font-mono-tech">
-                <div>
-                  <span className="text-white block font-bold">{c.followers.toLocaleString()}</span>
-                  <span className="text-[#958ea0]">Followers</span>
+          {creators.map((c) => {
+            const creatorMetrics = computeCreatorMetricsFromTracks(c, tracks);
+            return (
+              <div
+                key={c.id}
+                onClick={() => onSelectTab('community')}
+                className="p-4 rounded-2xl bg-[#161622]/60 hover:bg-[#161622] border border-white/5 hover:border-[#10B981]/30 p-4 space-y-3 cursor-pointer transition-all text-center group"
+              >
+                <div className="w-16 h-16 rounded-full mx-auto overflow-hidden border-2 border-[#10B981]/40 group-hover:scale-105 transition-transform shadow-lg">
+                  <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <span className="text-[#06B6D4] block font-bold">{(c.totalPlays / 1000).toFixed(0)}k</span>
-                  <span className="text-[#958ea0]">Plays</span>
+                  <h3 className="font-display font-semibold text-sm text-white flex items-center justify-center gap-1">
+                    {c.name}
+                    {c.verified && <CheckCircle2 className="w-3.5 h-3.5 text-[#06B6D4]" />}
+                  </h3>
+                  <span className="text-[11px] font-mono-tech text-[#958ea0]">{c.handle}</span>
+                </div>
+                <p className="text-[11px] text-[#958ea0] line-clamp-2 px-1">{c.bio}</p>
+                <div className="pt-2 border-t border-white/5 flex items-center justify-around text-[10px] font-mono-tech">
+                  <div>
+                    <span className="text-white block font-bold tabular-nums">{c.followers.toLocaleString()}</span>
+                    <span className="text-[#958ea0]">Followers</span>
+                  </div>
+                  <div>
+                    <span className="text-[#06B6D4] block font-bold tabular-nums">
+                      {formatCompactCount(creatorMetrics.totalPlays)}
+                    </span>
+                    <span className="text-[#958ea0]">Plays</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

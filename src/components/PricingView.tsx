@@ -18,12 +18,14 @@ interface PricingViewProps {
   currentTier?: 'Free' | 'Haven Pro';
   onSelectTier?: (tier: 'Free' | 'Haven Pro') => void;
   aiQuota?: UserAiQuotaState;
+  trackCount?: number;
 }
 
 export const PricingView: React.FC<PricingViewProps> = ({
   currentTier = 'Haven Pro',
   onSelectTier,
   aiQuota,
+  trackCount,
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -110,7 +112,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
             <ul className="space-y-2.5 text-xs text-[#cbc3d7] pt-2 border-t border-white/5 font-sans">
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-[#10B981] shrink-0" />
-                <span>Unlimited streaming of all 14,000+ tracks</span>
+                <span>
+                  Unlimited streaming of all{' '}
+                  {trackCount !== undefined ? `${trackCount.toLocaleString()} ` : ''}
+                  catalog track{trackCount === 1 ? '' : 's'}
+                </span>
               </li>
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-[#10B981] shrink-0" />

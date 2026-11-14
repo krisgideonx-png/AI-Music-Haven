@@ -345,7 +345,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'title', 'creator', 'description', 'story', 'lyrics', 'aiToolOrigin', 'bpm', 'key',
           'genre', 'subgenre', 'mood', 'vocalType', 'license', 'coverArt',
-          'categoryConfirmed', 'visibility', 'updatedByUid', 'createdAt', 'updatedAt'
+          'categoryConfirmed', 'takenDown', 'visibility', 'updatedByUid', 'createdAt', 'updatedAt'
         ])
         && isValidId(data.id)
         && data.id == trackId
@@ -364,6 +364,7 @@ service cloud.firestore {
         && data.license in ['Free Personal', 'Attribution Required', 'Commercial Permitted', 'All Rights Reserved']
         && isBoundedString(data.coverArt, 1, 500)
         && data.categoryConfirmed is bool
+        && (!('takenDown' in data) || data.takenDown is bool)
         && data.visibility == 'public'
         && isValidId(data.updatedByUid)
         && data.updatedByUid == request.auth.uid
@@ -388,7 +389,7 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'title', 'creator', 'description', 'story', 'lyrics', 'aiToolOrigin', 'bpm', 'key',
           'genre', 'subgenre', 'mood', 'vocalType', 'license', 'coverArt',
-          'categoryConfirmed', 'updatedByUid', 'updatedAt'
+          'categoryConfirmed', 'takenDown', 'updatedByUid', 'updatedAt'
         ]);
 
       allow delete: if isAdmin() && isValidId(trackId);

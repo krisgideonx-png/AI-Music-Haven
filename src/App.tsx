@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { 
   AudioTrack, 
   HavenTab, 
+  HavenNotification,
   Playlist, 
   CommunityPost, 
   CreatorProfile, 
@@ -79,13 +80,51 @@ import { CreatorDashboardView } from './components/CreatorDashboardView.tsx';
 import { PricingView } from './components/PricingView.tsx';
 import { AdminView } from './components/AdminView.tsx';
 import { RoomsView } from './components/RoomsView.tsx';
+import { NotificationsView } from './components/NotificationsView.tsx';
 import { TrackDetailsModal } from './components/TrackDetailsModal.tsx';
 import { SpectralVisualizerModal } from './components/SpectralVisualizerModal.tsx';
 import { MasterPlayer } from './components/MasterPlayer.tsx';
+import {
+  buildNotificationsFeed,
+  countUnreadNotifications,
+  loadNotificationPrefs,
+  saveNotificationPrefs,
+} from './utils/notifications.ts';
+
+const TAKEN_DOWN_CATALOG_CACHE_KEY = 'haven_taken_down_catalog_ids_v1';
+
+function loadCachedTakenDownIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(TAKEN_DOWN_CATALOG_CACHE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCachedTakenDownIds(ids: ReadonlySet<string>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TAKEN_DOWN_CATALOG_CACHE_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // Ignore storage restriction
+  }
+}
 
 export default function App() {
-  const [tracks, setTracks] = useState<AudioTrack[]>(INITIAL_TRACKS);
-  const [currentTrack, setCurrentTrack] = useState<AudioTrack>(INITIAL_TRACKS[0]);
+  const [takenDownCatalogIds, setTakenDownCatalogIds] = useState<Set<string>>(() => loadCachedTakenDownIds());
+  const [tracks, setTracks] = useState<AudioTrack[]>(() => {
+    const cachedTakenDown = loadCachedTakenDownIds();
+    const visible = INITIAL_TRACKS.filter((t) => !cachedTakenDown.has(t.id));
+    return visible.length > 0 ? visible : INITIAL_TRACKS;
+  });
+  const [currentTrack, setCurrentTrack] = useState<AudioTrack>(() => {
+    const cachedTakenDown = loadCachedTakenDownIds();
+    return INITIAL_TRACKS.find((t) => !cachedTakenDown.has(t.id)) || INITIAL_TRACKS[0];
+  });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackProgress, setPlaybackProgress] = useState<number>(0);
   const [currentTab, setCurrentTab] = useState<HavenTab>('home');
@@ -101,7 +140,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [cloudTrackIds, setCloudTrackIds] = useState<Set<string>>(() => new Set());
   const [catalogOverrides, setCatalogOverrides] = useState<Record<string, Partial<AudioTrack>>>({});
-  const [takenDownCatalogIds, setTakenDownCatalogIds] = useState<Set<string>>(() => new Set());
 
   // Dynamic state arrays
   const [playlists, setPlaylists] = useState<Playlist[]>(INITIAL_PLAYLISTS);
@@ -109,6 +147,16 @@ export default function App() {
   const [creators] = useState<CreatorProfile[]>(INITIAL_CREATORS);
   const [reports, setReports] = useState<CopyrightReport[]>(INITIAL_REPORTS);
   const [takedownNotices, setTakedownNotices] = useState<TrackTakedownNotice[]>([]);
+  const [activityNotifications, setActivityNotifications] = useState<HavenNotification[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => {
+    const prefs = loadNotificationPrefs('guest');
+    return new Set(prefs.readIds);
+  });
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(() => {
+    const prefs = loadNotificationPrefs('guest');
+    return new Set(prefs.dismissedIds);
+  });
+  const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
 
   // Sleep Timer state
   const [sleepTimer, setSleepTimer] = useState<SleepTimerState>({
@@ -148,6 +196,82 @@ export default function App() {
   playbackProgressRef.current = playbackProgress;
 
   const isAdmin = isAdminUser(authUser);
+  const notificationScopeKey = authUser?.uid || 'guest';
+
+  useEffect(() => {
+    const prefs = loadNotificationPrefs(notificationScopeKey);
+    setReadNotificationIds(new Set(prefs.readIds));
+    setDismissedNotificationIds(new Set(prefs.dismissedIds));
+  }, [notificationScopeKey]);
+
+  const notifications = useMemo(
+    () =>
+      buildNotificationsFeed({
+        takedowns: takedownNotices,
+        reports,
+        tracks,
+        activityNotifications,
+        userUid: authUser?.uid || null,
+        isAdmin,
+        readIds: readNotificationIds,
+        dismissedIds: dismissedNotificationIds,
+      }),
+    [
+      takedownNotices,
+      reports,
+      tracks,
+      activityNotifications,
+      authUser?.uid,
+      isAdmin,
+      readNotificationIds,
+      dismissedNotificationIds,
+    ]
+  );
+
+  const unreadNotificationCount = useMemo(
+    () => countUnreadNotifications(notifications),
+    [notifications]
+  );
+
+  const handleMarkNotificationRead = (notificationId: string, read: boolean) => {
+    setReadNotificationIds((prev) => {
+      const next = new Set(prev);
+      if (read) {
+        next.add(notificationId);
+      } else {
+        next.delete(notificationId);
+      }
+      saveNotificationPrefs(notificationScopeKey, next, dismissedNotificationIds);
+      return next;
+    });
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    setReadNotificationIds((prev) => {
+      const next = new Set(prev);
+      notifications.forEach((n) => next.add(n.id));
+      saveNotificationPrefs(notificationScopeKey, next, dismissedNotificationIds);
+      return next;
+    });
+  };
+
+  const handleDismissNotification = (notificationId: string) => {
+    setDismissedNotificationIds((prev) => {
+      const next = new Set(prev);
+      next.add(notificationId);
+      saveNotificationPrefs(notificationScopeKey, readNotificationIds, next);
+      return next;
+    });
+    if (selectedNotificationId === notificationId) {
+      setSelectedNotificationId(null);
+    }
+  };
+
+  const handleSelectNotification = (notification: HavenNotification) => {
+    handleMarkNotificationRead(notification.id, true);
+    setSelectedNotificationId(notification.id);
+    setCurrentTab('notifications');
+  };
 
   // Per-user AI generation cap state (charged strictly to the requesting user's cap, never global owner limit)
   const visitorIdRef = useRef<string>('');
@@ -344,6 +468,9 @@ export default function App() {
           ),
         ];
         setTracks(merged);
+        if (merged.length > 0 && !merged.some((t) => t.id === currentTrackRef.current.id)) {
+          setCurrentTrack(merged[0]);
+        }
       },
       (err) => {
         console.error('Track subscription error:', err.message);
@@ -367,20 +494,26 @@ export default function App() {
     return () => unsub();
   }, [authUser?.uid, isAdmin]);
 
-  // Subscribe to admin metadata overrides for curated catalog tracks
+  // Subscribe to admin metadata overrides & persistent catalog takedowns
   useEffect(() => {
     const unsub = subscribeToCatalogOverrides(
-      (overrides) => {
+      (overrides, cloudTakenDownIds) => {
         setCatalogOverrides(overrides);
+        setTakenDownCatalogIds(cloudTakenDownIds);
+        saveCachedTakenDownIds(cloudTakenDownIds);
         setTracks((prev) =>
-          prev.map((t) => (overrides[t.id] ? { ...t, ...overrides[t.id] } : t))
+          prev
+            .filter((t) => !cloudTakenDownIds.has(t.id))
+            .map((t) => (overrides[t.id] ? { ...t, ...overrides[t.id] } : t))
         );
         setCurrentTrack((prev) =>
           overrides[prev.id] ? { ...prev, ...overrides[prev.id] } : prev
         );
-        setSelectedTrackForDetails((prev) =>
-          prev && overrides[prev.id] ? { ...prev, ...overrides[prev.id] } : prev
-        );
+        setSelectedTrackForDetails((prev) => {
+          if (!prev) return prev;
+          if (cloudTakenDownIds.has(prev.id)) return null;
+          return overrides[prev.id] ? { ...prev, ...overrides[prev.id] } : prev;
+        });
       },
       (err) => {
         console.error('Catalog override subscription error:', err.message);
@@ -952,6 +1085,27 @@ export default function App() {
     setTracks((prev) => [newTrack, ...prev.filter((t) => t.id !== newTrack.id)]);
     setCurrentTrack(newTrack);
     setPlaybackProgress(0);
+    setActivityNotifications((prev) => [
+      {
+        id: `pub-${newTrack.id}`,
+        type: 'track_published',
+        title: `Published to Haven: ${newTrack.title}`,
+        message: `"${newTrack.title}" (${newTrack.genre} · ${newTrack.bpm} BPM) is now live in the public AI Music Haven catalog.`,
+        time: 'Just now',
+        createdAtMs: Date.now(),
+        read: false,
+        trackId: newTrack.id,
+        trackTitle: newTrack.title,
+        actorName: newTrack.creator,
+        metadata: {
+          genre: newTrack.genre,
+          subgenre: newTrack.subgenre,
+          plays: newTrack.plays,
+          downloads: newTrack.downloads,
+        },
+      },
+      ...prev.filter((n) => n.id !== `pub-${newTrack.id}`),
+    ]);
   };
 
   // Update existing track title and metadata details (Admin can edit all songs; creators can edit only their own uploads)
@@ -1021,17 +1175,63 @@ export default function App() {
     if (cloudTrackIds.has(target.id)) {
       await deleteTrackFromFirestore(target.id);
     } else {
-      setTakenDownCatalogIds((prev) => new Set(prev).add(target.id));
+      if (isAdmin && authUser?.uid) {
+        await saveCatalogOverrideToFirestore(target, {}, authUser.uid, { takenDown: true });
+      }
+      setTakenDownCatalogIds((prev) => {
+        const next = new Set(prev);
+        next.add(target.id);
+        saveCachedTakenDownIds(next);
+        return next;
+      });
     }
 
     setTakedownNotices((prev) => [localNotice, ...prev.filter((n) => n.id !== noticeId)]);
     const remaining = tracks.filter((t) => t.id !== target.id);
     setTracks(remaining);
-    if (currentTrack.id === target.id && remaining.length > 0) {
+    if (currentTrack.id === target.id) {
       audioEngine.stopPlayback();
       setIsPlaying(false);
-      setCurrentTrack(remaining[0]);
       setPlaybackProgress(0);
+      if (remaining.length > 0) {
+        setCurrentTrack(remaining[0]);
+      }
+    }
+    if (selectedTrackForDetails?.id === target.id) {
+      setSelectedTrackForDetails(null);
+      setTrackDetailsInitialEdit(false);
+    }
+  };
+
+  // Delete song directly (available to both the owning creator and Admin)
+  const handleDeleteTrack = async (target: AudioTrack) => {
+    if (!canDeleteTrack(target, authUser)) {
+      throw new Error(`Permission denied: only the song uploader or Admin (${ADMIN_EMAIL}) can delete this song.`);
+    }
+
+    if (cloudTrackIds.has(target.id)) {
+      await deleteTrackFromFirestore(target.id);
+    } else {
+      if (isAdmin && authUser?.uid) {
+        await saveCatalogOverrideToFirestore(target, {}, authUser.uid, { takenDown: true });
+      }
+      setTakenDownCatalogIds((prev) => {
+        const next = new Set(prev);
+        next.add(target.id);
+        saveCachedTakenDownIds(next);
+        return next;
+      });
+    }
+
+    const remaining = tracks.filter((t) => t.id !== target.id);
+    setTracks(remaining);
+    if (currentTrack.id === target.id) {
+      audioEngine.stopPlayback();
+      setIsPlaying(false);
+      setPlaybackProgress(0);
+      if (remaining.length > 0) {
+        setCurrentTrack(remaining[0]);
+      }
     }
     if (selectedTrackForDetails?.id === target.id) {
       setSelectedTrackForDetails(null);
@@ -1148,7 +1348,12 @@ export default function App() {
         onOpenSearch={() => {
           if (currentTab !== 'explore') setCurrentTab('explore');
         }}
-        takedowns={takedownNotices}
+        trackCount={tracks.length}
+        notifications={notifications}
+        unreadCount={unreadNotificationCount}
+        onSelectNotification={handleSelectNotification}
+        onOpenNotificationsPage={() => setCurrentTab('notifications')}
+        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
         activeRoomCode={activeRoom?.code || null}
         userTier={userTier}
         authUser={authUser}
@@ -1270,6 +1475,7 @@ export default function App() {
             onOpenAdminDashboard={isAdmin ? () => setCurrentTab('admin') : undefined}
             onOpenTrackDetails={(track) => openTrackModal(track, false)}
             onEditTrackDetails={(track) => openTrackModal(track, true)}
+            onDeleteTrack={handleDeleteTrack}
           />
         )}
 
@@ -1278,6 +1484,7 @@ export default function App() {
             currentTier={userTier}
             onSelectTier={setUserTier}
             aiQuota={aiQuota}
+            trackCount={tracks.length}
           />
         )}
 
@@ -1346,6 +1553,27 @@ export default function App() {
             onSetFeaturedTrack={handleSetFeaturedTrack}
           />
         )}
+
+        {currentTab === 'notifications' && (
+          <NotificationsView
+            notifications={notifications}
+            selectedNotificationId={selectedNotificationId}
+            onSelectNotification={handleSelectNotification}
+            onMarkRead={handleMarkNotificationRead}
+            onMarkAllRead={handleMarkAllNotificationsRead}
+            onDismissNotification={handleDismissNotification}
+            tracks={tracks}
+            currentTrack={currentTrack}
+            isPlaying={isPlaying}
+            authUser={authUser}
+            onSelectTrack={handleSelectTrack}
+            onTogglePlay={handleTogglePlay}
+            onOpenTrackDetails={(track, editMode) => openTrackModal(track, Boolean(editMode))}
+            onLikeTrack={handleLikeTrack}
+            onSelectTab={setCurrentTab}
+            onResolveReport={handleResolveReport}
+          />
+        )}
       </main>
 
       {/* Persistent Audio Master Player Docked at Bottom */}
@@ -1383,6 +1611,7 @@ export default function App() {
         isOpen={Boolean(selectedTrackForDetails)}
         initialEditMode={trackDetailsInitialEdit}
         canEdit={canEditTrack(selectedTrackForDetails, authUser)}
+        canDelete={canDeleteTrack(selectedTrackForDetails, authUser)}
         permissionRole={getTrackPermissionRole(selectedTrackForDetails, authUser)}
         aiQuota={aiQuota}
         aiQuotaRequestContext={aiQuotaRequestContext}
@@ -1418,6 +1647,8 @@ export default function App() {
         onLikeTrack={handleLikeTrack}
         onAddComment={handleAddComment}
         onUpdateTrack={handleUpdateTrack}
+        onDeleteTrack={handleDeleteTrack}
+        onTakeDownTrack={isAdmin ? handleTakeDownTrack : undefined}
         relatedTracks={tracks.filter(
           (t) => t.id !== selectedTrackForDetails?.id && t.genre === selectedTrackForDetails?.genre
         )}

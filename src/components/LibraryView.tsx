@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { AudioTrack, Playlist, CreatorProfile } from '../types/index.ts';
 import { formatTime } from '../utils/audioMath.ts';
+import { computeDownloadedCacheStats, countExistingPlaylistTracks } from '../utils/catalogStats.ts';
 
 interface LibraryViewProps {
   tracks: AudioTrack[];
@@ -50,6 +51,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const likedTracks = tracks.filter((t) => t.isLiked);
   const downloadedTracks = tracks.filter((t) => t.downloads > 4000);
+  const offlineCacheStats = computeDownloadedCacheStats(downloadedTracks);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,8 +207,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <p className="text-xs text-[#958ea0] line-clamp-2 mt-0.5">{pl.description}</p>
               </div>
 
-              <div className="flex items-center justify-between text-xs font-mono-tech text-[#958ea0] pt-2 border-t border-white/5">
-                <span>{pl.trackIds.length} tracks</span>
+              <div className="flex items-center justify-between text-xs font-mono-tech text-[#958ea0] pt-2 border-t border-white/5 tabular-nums">
+                <span>
+                  {countExistingPlaylistTracks(pl, tracks)}{' '}
+                  {countExistingPlaylistTracks(pl, tracks) === 1 ? 'track' : 'tracks'}
+                </span>
                 <span>Updated {pl.updatedAt}</span>
               </div>
             </div>
@@ -218,7 +223,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       {activeSubTab === 'downloads' && (
         <div className="space-y-3">
           <div className="p-3.5 rounded-xl bg-[#08080C] border border-white/5 text-xs text-[#958ea0] flex items-center justify-between">
-            <span>Offline Cache: 3 tracks stored locally (146 MB)</span>
+            <span className="tabular-nums">
+              Offline Cache: {offlineCacheStats.trackCount}{' '}
+              {offlineCacheStats.trackCount === 1 ? 'track' : 'tracks'} stored locally (
+              {offlineCacheStats.formattedSize})
+            </span>
             <span className="text-[#10B981] font-mono-tech">Audiophile WAV / 24-bit</span>
           </div>
           {downloadedTracks.map((track) => (
