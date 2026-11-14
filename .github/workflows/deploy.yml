@@ -24,13 +24,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Build static bundle
+        env:
+          VITE_API_BASE_URL: https://ai-music-haven-287128902590.europe-west3.run.app
         run: npm run build
-      - name: Add SPA fallback for GitHub Pages
-        run: cp dist/index.html dist/404.html
+      - name: Add SPA fallback and disable Jekyll
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

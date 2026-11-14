@@ -1,3 +1,5 @@
+import { buildApiUrl } from './apiConfig.ts';
+
 /**
  * Audio DSP & telemetry calculation helpers for Neural Acoustic Luminescence
  */
@@ -128,6 +130,10 @@ export function resolvePublicAssetUrl(url?: string, baseUri?: string): string | 
     trimmed.startsWith('data:')
   ) {
     return trimmed;
+  }
+
+  if (trimmed.startsWith('/api/')) {
+    return buildApiUrl(trimmed);
   }
 
   const resolvedBase =

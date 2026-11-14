@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Loader2, AlertCircle } from 'lucide-react';
 import type { UserAiQuotaState } from '../utils/aiQuota.ts';
+import { buildApiUrl } from '../utils/apiConfig.ts';
 
 export interface AiQuotaRequestContext {
   userId?: string | null;
@@ -143,7 +144,7 @@ export const MicTranscribeButton: React.FC<MicTranscribeButtonProps> = ({
           setStatus('transcribing');
           try {
             const audioBase64 = await blobToBase64(blob);
-            const response = await fetch('/api/transcribe', {
+            const response = await fetch(buildApiUrl('/api/transcribe'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

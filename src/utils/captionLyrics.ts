@@ -1,4 +1,5 @@
 import type { UserAiQuotaState } from './aiQuota.ts';
+import { buildApiUrl } from './apiConfig.ts';
 
 export interface LyricCaptionCue {
   id: string;
@@ -157,7 +158,7 @@ export async function requestLyricsCaption(params: {
     throw new Error('Attach or select an audio song first so AI Music Haven can caption its lyrics.');
   }
 
-  const response = await fetch('/api/caption-lyrics', {
+  const response = await fetch(buildApiUrl('/api/caption-lyrics'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

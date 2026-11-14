@@ -60,6 +60,7 @@ import {
 } from './utils/accessControl.ts';
 import { buildCreatorHandle, sanitizeTrackUpdates } from './utils/trackCategorizer.ts';
 import { audioEngine } from './utils/audioEngine.ts';
+import { buildApiUrl } from './utils/apiConfig.ts';
 import { clampSleepMinutes, computeSleepFadeMultiplier } from './utils/sleepTimer.ts';
 import {
   normalizeRoomCode,
@@ -383,7 +384,9 @@ export default function App() {
             setAiQuota(baseState);
 
             const res = await fetch(
-              `/api/quota?userId=${encodeURIComponent(user.uid)}&visitorId=${encodeURIComponent(visitorIdRef.current)}&tier=${encodeURIComponent(effectiveTier)}&quotaUsed=${baseState.used}&quotaCycle=${encodeURIComponent(baseState.cycle)}`
+              buildApiUrl(
+                `/api/quota?userId=${encodeURIComponent(user.uid)}&visitorId=${encodeURIComponent(visitorIdRef.current)}&tier=${encodeURIComponent(effectiveTier)}&quotaUsed=${baseState.used}&quotaCycle=${encodeURIComponent(baseState.cycle)}`
+              )
             );
             if (res.ok) {
               const data = await res.json();
@@ -702,7 +705,7 @@ export default function App() {
     const roomCode = activeRoom?.code;
     if (!roomCode) return;
 
-    const evtSource = new EventSource(`/api/rooms/${roomCode}/events`);
+    const evtSource = new EventSource(buildApiUrl(`/api/rooms/${roomCode}/events`));
     const onRoomState = (ev: MessageEvent) => {
       try {
         const parsed = JSON.parse(ev.data);
@@ -750,7 +753,7 @@ export default function App() {
     if (!canControlActiveRoom(activeRoom)) return;
 
     try {
-      const response = await fetch(`/api/rooms/${activeRoom.code}/sync`, {
+      const response = await fetch(buildApiUrl(`/api/rooms/${activeRoom.code}/sync`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -793,7 +796,7 @@ export default function App() {
     setRoomError(null);
     setRoomLoading(true);
     try {
-      const response = await fetch('/api/rooms', {
+      const response = await fetch(buildApiUrl('/api/rooms'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -853,7 +856,7 @@ export default function App() {
     setRoomError(null);
     setRoomLoading(true);
     try {
-      const response = await fetch(`/api/rooms/${cleaned}/join`, {
+      const response = await fetch(buildApiUrl(`/api/rooms/${cleaned}/join`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -912,7 +915,7 @@ export default function App() {
     url.searchParams.delete('room');
     window.history.replaceState({}, '', url.toString());
     try {
-      await fetch(`/api/rooms/${code}/leave`, {
+      await fetch(buildApiUrl(`/api/rooms/${code}/leave`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId: roomClientIdRef.current }),
@@ -931,11 +934,14 @@ export default function App() {
     url.searchParams.delete('room');
     window.history.replaceState({}, '', url.toString());
     try {
-      await fetch(`/api/rooms/${code}?clientId=${encodeURIComponent(roomClientIdRef.current)}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: roomClientIdRef.current }),
-      });
+      await fetch(
+        buildApiUrl(`/api/rooms/${code}?clientId=${encodeURIComponent(roomClientIdRef.current)}`),
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: roomClientIdRef.current }),
+        }
+      );
       if (authUser && hostUid === authUser.uid) {
         void deleteListeningRoomFromFirestore(code).catch(() => {});
       }
@@ -947,7 +953,7 @@ export default function App() {
   const handleResyncRoomClock = async () => {
     if (!activeRoom) return;
     try {
-      const response = await fetch(`/api/rooms/${activeRoom.code}`);
+      const response = await fetch(buildApiUrl(`/api/rooms/${activeRoom.code}`));
       const data = await response.json();
       if (response.ok && data?.room) {
         applyRemoteRoomState(data.room as ListeningRoom);

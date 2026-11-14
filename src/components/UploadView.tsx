@@ -43,6 +43,7 @@ import { MicTranscribeButton, type AiQuotaRequestContext } from './MicTranscribe
 import { CaptionLyricsButton } from './CaptionLyricsButton.tsx';
 import { UserAiCapBadge } from './UserAiCapBadge.tsx';
 import type { UserAiQuotaState } from '../utils/aiQuota.ts';
+import { buildApiUrl } from '../utils/apiConfig.ts';
 
 interface UploadViewProps {
   authUser: User | null;
@@ -188,7 +189,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
     mood: string;
     energyLevel?: UploadDraft['energyLevel'];
   }): Promise<string> => {
-    const response = await fetch('/api/generate-cover', {
+    const response = await fetch(buildApiUrl('/api/generate-cover'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -204,14 +205,14 @@ export const UploadView: React.FC<UploadViewProps> = ({
       throw new Error(typeof data?.error === 'string' ? data.error : 'Could not generate cover art.');
     }
     if (typeof data?.coverUrl === 'string' && data.coverUrl.trim()) {
-      return data.coverUrl.trim();
+      return buildApiUrl(data.coverUrl.trim());
     }
     throw new Error('Cover generator returned empty URL.');
   };
 
   const requestCategorization = async (targetDraft: UploadDraft): Promise<CategorizationResult> => {
     try {
-      const response = await fetch('/api/categorize', {
+      const response = await fetch(buildApiUrl('/api/categorize'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -581,7 +582,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
       prev.map((i) => (i.id === id ? { ...i, isGeneratingStory: true } : i))
     );
     try {
-      const response = await fetch('/api/generate-story', {
+      const response = await fetch(buildApiUrl('/api/generate-story'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -774,7 +775,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
     setStoryError(null);
     setIsGeneratingStory(true);
     try {
-      const response = await fetch('/api/generate-story', {
+      const response = await fetch(buildApiUrl('/api/generate-story'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -835,7 +836,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
     }, 320);
 
     try {
-      const response = await fetch('/api/categorize', {
+      const response = await fetch(buildApiUrl('/api/categorize'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

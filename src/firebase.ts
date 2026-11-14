@@ -31,6 +31,7 @@ import {
   clampNumber,
 } from './utils/trackCategorizer.ts';
 import { getBillingCycleKey } from './utils/aiQuota.ts';
+import { buildApiUrl } from './utils/apiConfig.ts';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -337,7 +338,12 @@ export function subscribeToCatalogOverrides(
           mood: typeof d.mood === 'string' ? d.mood : undefined,
           vocalType: typeof d.vocalType === 'string' ? d.vocalType : undefined,
           license: typeof d.license === 'string' ? (d.license as HavenLicense) : undefined,
-          coverArt: typeof d.coverArt === 'string' ? d.coverArt : undefined,
+          coverArt:
+            typeof d.coverArt === 'string'
+              ? d.coverArt.startsWith('/api/')
+                ? buildApiUrl(d.coverArt)
+                : d.coverArt
+              : undefined,
           categoryConfirmed: typeof d.categoryConfirmed === 'boolean' ? d.categoryConfirmed : undefined,
         };
       });
@@ -403,10 +409,13 @@ export function subscribeToPublishedTracks(
             : 'Medium') as AudioTrack['energyLevel'],
           musicalStyle: String(d.musicalStyle || 'AI Composition'),
           license: (d.license || 'Attribution Required') as AudioTrack['license'],
-          coverArt: String(
-            d.coverArt ||
-              'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80'
-          ),
+          coverArt: (() => {
+            const rawCover = String(
+              d.coverArt ||
+                'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80'
+            );
+            return rawCover.startsWith('/api/') ? buildApiUrl(rawCover) : rawCover;
+          })(),
           waveform: Array.isArray(d.waveform) ? d.waveform.map(Number) : [0.3, 0.5, 0.4],
           createdAt: createdTs ? createdTs.toLocaleDateString() : 'Just now',
           plays: Number(d.plays || 1),
